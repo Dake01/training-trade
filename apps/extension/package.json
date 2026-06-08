@@ -1,0 +1,30 @@
+{
+  "name": "@training-trade/extension",
+  "version": "0.1.0",
+  "private": true,
+  "displayName": "Training Trade",
+  "description": "Point d'entree leger de l'extension. Affiche la session active (pas d'integration TradingView en V1 story 1.1).",
+  "scripts": {
+    "dev": "plasmo dev",
+    "build": "plasmo build",
+    "package": "plasmo package",
+    "typecheck": "tsc --noEmit",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@training-trade/shared": "workspace:*",
+    "plasmo": "^0.90.5",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.300",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "typescript": "^5.7.3"
+  },
+  "manifest": {
+    "name": "Training Trade",
+    "host_permissions": []
+  }
+}

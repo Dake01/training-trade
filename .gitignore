@@ -1,0 +1,23 @@
+node_modules/
+dist/
+build/
+.next/
+out/
+coverage/
+*.tsbuildinfo
+
+# Local SQLite source of truth (V1) and any local data
+.data/
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+*.db
+
+# Plasmo / extension build artifacts
+.plasmo/
+build/chrome-mv3-*/
+
+# Env
+.env
+.env.local

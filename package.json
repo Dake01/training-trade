@@ -1,0 +1,22 @@
+{
+  "name": "training-trade",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Outil personnel de simulation et de mesure de trading (replay). V1 local, SQLite source de verite.",
+  "packageManager": "pnpm@9.15.4",
+  "engines": {
+    "node": ">=20.9.0"
+  },
+  "scripts": {
+    "build": "pnpm -r --if-present build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "pnpm -r --if-present lint",
+    "typecheck": "pnpm -r --if-present typecheck"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.0",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.5"
+  }
+}
