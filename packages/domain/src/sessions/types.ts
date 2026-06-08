@@ -32,7 +32,10 @@ export interface SessionDeps {
 /** Transactional view of the store handed to exclusive operations. */
 export interface SessionStore {
   findActive(): SessionRecord | null;
+  findById(id: string): SessionRecord | null;
   insert(record: SessionRecord): void;
+  /** Update an existing session in place; the `id` is never reassigned. */
+  update(record: SessionRecord): void;
 }
 
 /**
@@ -41,9 +44,11 @@ export interface SessionStore {
  */
 export interface SessionRepository {
   findActive(): SessionRecord | null;
+  findById(id: string): SessionRecord | null;
   /**
    * Runs `fn` with exclusive access so the "only one active session" invariant
    * is enforced atomically (a real transaction in the SQLite implementation).
+   * Used by create, resume and close to read + write within one transaction.
    */
   transaction<T>(fn: (store: SessionStore) => T): T;
 }

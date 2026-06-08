@@ -1,8 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   ActiveSessionExistsError,
+  closeSession,
   createSession,
   getActiveSession,
+  resumeSession,
   systemSessionDeps,
 } from "@training-trade/domain";
 import { createDbClient, resolveDatabasePath, type DbClient } from "../../client";
@@ -80,6 +82,86 @@ describe("createSqliteSessionRepository (integration, in-memory SQLite)", () => 
       .prepare("SELECT COUNT(*) AS n FROM sessions WHERE status = 'open'")
       .get() as { n: number };
     expect(count.n).toBe(1);
+  });
+
+  it("finds a persisted session by id and returns null for unknown ids", () => {
+    const repo = createSqliteSessionRepository(client);
+    const created = createSession(repo, systemSessionDeps);
+
+    expect(repo.findById(created.id)?.id).toBe(created.id);
+    expect(repo.findById("does-not-exist")).toBeNull();
+  });
+
+  it("closes a session: no active session remains and timestamps are preserved", () => {
+    const repo = createSqliteSessionRepository(client);
+    const created = createSession(repo, systemSessionDeps);
+
+    const closed = closeSession(repo, systemSessionDeps, created.id);
+
+    expect(closed.status).toBe("closed");
+    expect(closed.canReceiveDecisions).toBe(false);
+    expect(closed.closedAt).not.toBeNull();
+    // createdAt/openedAt preserved across the update.
+    expect(closed.createdAt).toBe(created.createdAt);
+    expect(closed.openedAt).toBe(created.openedAt);
+    // GET active is null after close, and the row still exists (update, not delete).
+    expect(getActiveSession(repo)).toBeNull();
+    expect(repo.findById(created.id)?.status).toBe("closed");
+  });
+
+  it("allows opening a new session after the previous one is closed", () => {
+    const repo = createSqliteSessionRepository(client);
+    const first = createSession(repo, systemSessionDeps);
+    closeSession(repo, systemSessionDeps, first.id);
+
+    // The partial unique index only constrains `open` rows, so a new one is allowed.
+    const second = createSession(repo, systemSessionDeps);
+    expect(second.id).not.toBe(first.id);
+    expect(getActiveSession(repo)?.id).toBe(second.id);
+
+    const openCount = client.sqlite
+      .prepare("SELECT COUNT(*) AS n FROM sessions WHERE status = 'open'")
+      .get() as { n: number };
+    expect(openCount.n).toBe(1);
+  });
+
+  it("resumes a suspended session back to open via update", () => {
+    const repo = createSqliteSessionRepository(client);
+    // Seed a suspended session directly (no UI path creates one yet).
+    client.sqlite
+      .prepare(
+        `INSERT INTO sessions (id, status, created_at, updated_at, opened_at, closed_at)
+         VALUES (?, 'suspended', ?, ?, ?, NULL)`,
+      )
+      .run("seed-1", "2026-06-08T10:00:00.000Z", "2026-06-08T10:00:00.000Z", "2026-06-08T10:00:00.000Z");
+
+    const resumed = resumeSession(repo, systemSessionDeps, "seed-1");
+
+    expect(resumed.id).toBe("seed-1");
+    expect(resumed.status).toBe("open");
+    expect(resumed.openedAt).toBe("2026-06-08T10:00:00.000Z");
+    expect(getActiveSession(repo)?.id).toBe("seed-1");
+  });
+
+  it("keeps the active unique index when resuming with another open session", () => {
+    const repo = createSqliteSessionRepository(client);
+    const open = createSession(repo, systemSessionDeps);
+    client.sqlite
+      .prepare(
+        `INSERT INTO sessions (id, status, created_at, updated_at, opened_at, closed_at)
+         VALUES (?, 'suspended', ?, ?, ?, NULL)`,
+      )
+      .run("seed-2", "2026-06-08T10:00:00.000Z", "2026-06-08T10:00:00.000Z", "2026-06-08T10:00:00.000Z");
+
+    expect(() => resumeSession(repo, systemSessionDeps, "seed-2")).toThrow(
+      ActiveSessionExistsError,
+    );
+    // The original open session is untouched and still unique.
+    expect(getActiveSession(repo)?.id).toBe(open.id);
+    const openCount = client.sqlite
+      .prepare("SELECT COUNT(*) AS n FROM sessions WHERE status = 'open'")
+      .get() as { n: number };
+    expect(openCount.n).toBe(1);
   });
 
   it("resolves relative database paths from the repo root", () => {

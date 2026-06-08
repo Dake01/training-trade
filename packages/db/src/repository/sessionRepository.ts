@@ -40,8 +40,19 @@ export function createSqliteSessionRepository(
     return row ? toRecord(row) : null;
   };
 
+  const findById = (id: string): SessionRecord | null => {
+    const row = db
+      .select()
+      .from(sessions)
+      .where(eq(sessions.id, id))
+      .limit(1)
+      .all()[0];
+    return row ? toRecord(row) : null;
+  };
+
   const store: SessionStore = {
     findActive,
+    findById,
     insert: (record) => {
       db.insert(sessions)
         .values({
@@ -54,10 +65,24 @@ export function createSqliteSessionRepository(
         })
         .run();
     },
+    update: (record) => {
+      // `id` and `createdAt` are immutable; only the mutable transition fields
+      // are written so a session row is updated in place, never recreated.
+      db.update(sessions)
+        .set({
+          status: record.status,
+          updatedAt: record.updatedAt,
+          openedAt: record.openedAt,
+          closedAt: record.closedAt,
+        })
+        .where(eq(sessions.id, record.id))
+        .run();
+    },
   };
 
   return {
     findActive,
+    findById,
     transaction: <T>(fn: (store: SessionStore) => T): T => {
       const runner = sqlite.transaction(() => fn(store));
       return runner() as T;

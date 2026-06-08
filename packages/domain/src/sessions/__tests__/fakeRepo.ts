@@ -12,12 +12,21 @@ export function createFakeSessionRepository(
   const rows: SessionRecord[] = [...initial];
   const store: SessionStore = {
     findActive: () => rows.find((row) => row.status === "open") ?? null,
+    findById: (id) => rows.find((row) => row.id === id) ?? null,
     insert: (record) => {
       rows.push(record);
+    },
+    update: (record) => {
+      const index = rows.findIndex((row) => row.id === record.id);
+      if (index === -1) {
+        throw new Error(`Unknown session ${record.id}`);
+      }
+      rows[index] = record;
     },
   };
   return {
     findActive: () => store.findActive(),
+    findById: (id) => store.findById(id),
     transaction: (fn) => fn(store),
   };
 }

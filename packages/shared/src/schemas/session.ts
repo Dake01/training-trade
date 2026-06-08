@@ -47,3 +47,13 @@ export const createSessionResponseSchema = z.object({
 export const activeSessionResponseSchema = z.object({
   session: sessionContextSchema.nullable(),
 });
+
+/** Payload shape for `POST /api/sessions/[id]/resume`. */
+export const resumeSessionResponseSchema = z.object({
+  session: sessionSchema,
+});
+
+/** Payload shape for `POST /api/sessions/[id]/close`. */
+export const closeSessionResponseSchema = z.object({
+  session: sessionSchema,
+});

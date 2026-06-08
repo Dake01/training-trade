@@ -4,6 +4,9 @@ import type { ApiError } from "./api/response";
 export const ERROR_CODES = {
   ACTIVE_SESSION_EXISTS: "ACTIVE_SESSION_EXISTS",
   NO_ACTIVE_SESSION: "NO_ACTIVE_SESSION",
+  SESSION_NOT_FOUND: "SESSION_NOT_FOUND",
+  SESSION_ALREADY_CLOSED: "SESSION_ALREADY_CLOSED",
+  SESSION_NOT_ACTIVE: "SESSION_NOT_ACTIVE",
   VALIDATION_ERROR: "VALIDATION_ERROR",
   INTERNAL_ERROR: "INTERNAL_ERROR",
 } as const;
@@ -21,6 +24,21 @@ export const apiErrors = {
     code: ERROR_CODES.NO_ACTIVE_SESSION,
     message: "Aucune session active.",
     status: 404,
+  }),
+  sessionNotFound: (): ApiError => ({
+    code: ERROR_CODES.SESSION_NOT_FOUND,
+    message: "Session introuvable.",
+    status: 404,
+  }),
+  sessionAlreadyClosed: (): ApiError => ({
+    code: ERROR_CODES.SESSION_ALREADY_CLOSED,
+    message: "La session est deja cloturee.",
+    status: 409,
+  }),
+  sessionNotActive: (): ApiError => ({
+    code: ERROR_CODES.SESSION_NOT_ACTIVE,
+    message: "La session n'est pas active.",
+    status: 409,
   }),
   validation: (message = "Requete invalide."): ApiError => ({
     code: ERROR_CODES.VALIDATION_ERROR,
