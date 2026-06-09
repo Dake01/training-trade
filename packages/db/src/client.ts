@@ -71,6 +71,25 @@ export function ensureSchema(sqlite: Database.Database): void {
     );
     CREATE INDEX IF NOT EXISTS idx_decisions_session_order
       ON decisions (session_id, logical_timestamp, created_at, id);
+
+    CREATE TABLE IF NOT EXISTS decision_amendments (
+      id TEXT PRIMARY KEY,
+      decision_id TEXT NOT NULL REFERENCES decisions (id),
+      session_id TEXT NOT NULL REFERENCES sessions (id),
+      kind TEXT NOT NULL,
+      comment TEXT,
+      reason TEXT,
+      replacement_asset_id TEXT REFERENCES assets (id),
+      replacement_side TEXT,
+      replacement_quantity TEXT,
+      replacement_reference_price TEXT,
+      replacement_logical_timestamp TEXT,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_amendments_decision_order
+      ON decision_amendments (decision_id, created_at, id);
+    CREATE INDEX IF NOT EXISTS idx_amendments_session_order
+      ON decision_amendments (session_id, created_at, id);
   `);
 }
 

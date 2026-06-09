@@ -45,6 +45,10 @@ export function toApiError(error: unknown): ApiError | null {
       return apiErrors.sessionNotActive();
     case ERROR_CODES.ASSET_NOT_IN_SESSION:
       return apiErrors.assetNotInSession();
+    case ERROR_CODES.DECISION_NOT_FOUND:
+      return apiErrors.decisionNotFound();
+    case ERROR_CODES.DECISION_NOT_AMENDABLE:
+      return apiErrors.decisionNotAmendable();
     default:
       return null;
   }

@@ -1,4 +1,7 @@
-import { getDefaultDecisionRepository } from "@training-trade/db";
+import {
+  getDefaultDecisionAmendmentRepository,
+  getDefaultDecisionRepository,
+} from "@training-trade/db";
 import {
   handleCaptureDecision,
   handleListSessionDecisions,
@@ -21,5 +24,5 @@ export async function GET(
   ctx: { params: Promise<{ id: string }> },
 ): Promise<Response> {
   const { id } = await ctx.params;
-  return handleListSessionDecisions(getDefaultDecisionRepository(), id);
+  return handleListSessionDecisions(getDefaultDecisionAmendmentRepository(), id);
 }

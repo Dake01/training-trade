@@ -8,6 +8,8 @@ export const ERROR_CODES = {
   SESSION_ALREADY_CLOSED: "SESSION_ALREADY_CLOSED",
   SESSION_NOT_ACTIVE: "SESSION_NOT_ACTIVE",
   ASSET_NOT_IN_SESSION: "ASSET_NOT_IN_SESSION",
+  DECISION_NOT_FOUND: "DECISION_NOT_FOUND",
+  DECISION_NOT_AMENDABLE: "DECISION_NOT_AMENDABLE",
   VALIDATION_ERROR: "VALIDATION_ERROR",
   INTERNAL_ERROR: "INTERNAL_ERROR",
 } as const;
@@ -44,6 +46,16 @@ export const apiErrors = {
   assetNotInSession: (): ApiError => ({
     code: ERROR_CODES.ASSET_NOT_IN_SESSION,
     message: "L'actif n'est pas associe a cette session.",
+    status: 409,
+  }),
+  decisionNotFound: (): ApiError => ({
+    code: ERROR_CODES.DECISION_NOT_FOUND,
+    message: "Decision introuvable.",
+    status: 404,
+  }),
+  decisionNotAmendable: (): ApiError => ({
+    code: ERROR_CODES.DECISION_NOT_AMENDABLE,
+    message: "Cette decision n'est plus modifiable.",
     status: 409,
   }),
   validation: (message = "Requete invalide."): ApiError => ({

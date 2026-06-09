@@ -2,19 +2,21 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type {
+  AmendDecisionRequest,
   ApiResponse,
   Decision,
   DecisionSide,
   Session,
   SessionContext,
   TrackedAsset,
+  DecisionTimelineEntry,
 } from "@training-trade/shared";
 
 type ActiveData = { session: SessionContext | null };
 type SessionData = { session: Session };
 type AssetsData = { assets: TrackedAsset[] };
 type AddAssetData = { asset: TrackedAsset };
-type DecisionsData = { decisions: Decision[] };
+type DecisionsData = { decisions: Decision[]; timeline?: DecisionTimelineEntry[] };
 type CaptureDecisionData = { decision: Decision };
 
 async function readEnvelope<T>(response: Response): Promise<ApiResponse<T>> {
@@ -36,6 +38,7 @@ export function SessionPanel() {
   const [resumeId, setResumeId] = useState("");
   const [assets, setAssets] = useState<TrackedAsset[]>([]);
   const [decisions, setDecisions] = useState<Decision[]>([]);
+  const [timeline, setTimeline] = useState<DecisionTimelineEntry[] | null>(null);
   const displayedIdRef = useRef<string | null>(null);
   const [symbolInput, setSymbolInput] = useState("");
   const [loading, setLoading] = useState(true);
@@ -106,6 +109,7 @@ export function SessionPanel() {
         return;
       }
       setDecisions(body.data?.decisions ?? []);
+      setTimeline(body.data?.timeline ?? null);
     } catch {
       if (displayedIdRef.current === sessionId) {
         setError("Impossible de charger les decisions.");
@@ -124,6 +128,7 @@ export function SessionPanel() {
     } else {
       setAssets([]);
       setDecisions([]);
+      setTimeline(null);
     }
   }, [displayedId, refreshAssets, refreshDecisions]);
 
@@ -186,6 +191,43 @@ export function SessionPanel() {
         return true;
       } catch {
         setError("Impossible d'enregistrer la decision.");
+        return false;
+      } finally {
+        setBusy(false);
+      }
+    },
+    [active, refreshDecisions],
+  );
+
+  const amendDecision = useCallback(
+    async (
+      decisionId: string,
+      payload: AmendDecisionRequest,
+    ): Promise<boolean> => {
+      if (!active) return false;
+      setBusy(true);
+      setError(null);
+      try {
+        const res = await fetch(
+          `/api/sessions/${encodeURIComponent(active.id)}/decisions/${encodeURIComponent(
+            decisionId,
+          )}/amendments`,
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify(payload),
+          },
+        );
+        const body = await readEnvelope<CaptureDecisionData>(res);
+        if (body.error) {
+          // Keep the history untouched; only surface the error.
+          setError(body.error.message);
+          return false;
+        }
+        await refreshDecisions(active.id);
+        return true;
+      } catch {
+        setError("Impossible de modifier la decision.");
         return false;
       } finally {
         setBusy(false);
@@ -297,15 +339,17 @@ export function SessionPanel() {
             session={active}
             assets={assets}
             decisions={decisions}
+            timeline={timeline}
             symbolInput={symbolInput}
             onSymbolChange={setSymbolInput}
             onAddAsset={() => void addAsset()}
             onCapture={captureDecision}
+            onAmend={amendDecision}
             onClose={() => void closeActiveSession()}
             disabled={busy}
           />
         ) : closed ? (
-          <ClosedSessionCard session={closed} assets={assets} decisions={decisions} />
+          <ClosedSessionCard session={closed} assets={assets} decisions={decisions} timeline={timeline} />
         ) : (
           <p style={{ color: "#9aa0a6" }}>
             Aucune session active. Cree-en une pour commencer.
@@ -357,16 +401,19 @@ function ActiveSessionCard({
   session,
   assets,
   decisions,
+  timeline,
   symbolInput,
   onSymbolChange,
   onAddAsset,
   onCapture,
+  onAmend,
   onClose,
   disabled,
 }: {
   session: SessionContext;
   assets: TrackedAsset[];
   decisions: Decision[];
+  timeline: DecisionTimelineEntry[] | null;
   symbolInput: string;
   onSymbolChange: (next: string) => void;
   onAddAsset: () => void;
@@ -376,6 +423,10 @@ function ActiveSessionCard({
     quantity: string;
     referencePrice: string;
   }) => Promise<boolean>;
+  onAmend: (
+    decisionId: string,
+    payload: AmendDecisionRequest,
+  ) => Promise<boolean>;
   onClose: () => void;
   disabled: boolean;
 }) {
@@ -407,7 +458,13 @@ function ActiveSessionCard({
 
       <DecisionCapture assets={assets} onCapture={onCapture} disabled={disabled} />
 
-      <DecisionHistory decisions={decisions} assets={assets} />
+      <DecisionHistory
+        decisions={decisions}
+        timeline={timeline}
+        assets={assets}
+        onAmend={onAmend}
+        disabled={disabled}
+      />
 
       <button
         type="button"
@@ -682,13 +739,24 @@ function DecisionCapture({
 
 function DecisionHistory({
   decisions,
+  timeline,
   assets,
+  onAmend,
+  disabled = false,
 }: {
   decisions: Decision[];
+  timeline: DecisionTimelineEntry[] | null;
   assets: TrackedAsset[];
+  /** When provided, the history exposes comment/correct/cancel affordances. */
+  onAmend?: (
+    decisionId: string,
+    payload: AmendDecisionRequest,
+  ) => Promise<boolean>;
+  disabled?: boolean;
 }) {
   const symbolOf = (assetId: string) =>
     assets.find((asset) => asset.id === assetId)?.symbol ?? assetId;
+  const entries = timeline ?? decisions.map((decision) => ({ decision, amendments: [] }));
 
   return (
     <div style={{ marginTop: 20, borderTop: "1px solid #2a2f37", paddingTop: 16 }}>
@@ -696,7 +764,7 @@ function DecisionHistory({
         Historique des decisions
       </h3>
 
-      {decisions.length === 0 ? (
+      {entries.length === 0 ? (
         <p style={{ margin: 0, color: "#9aa0a6", fontSize: 13 }}>
           Aucune decision enregistree pour le moment.
         </p>
@@ -711,46 +779,16 @@ function DecisionHistory({
             gap: 6,
           }}
         >
-          {decisions.map((decision) => (
-            <li
-              key={decision.id}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                padding: "6px 10px",
-                fontSize: 13,
-                background: "#0f1115",
-                border: "1px solid #2a2f37",
-                borderRadius: 8,
-              }}
-            >
-              <span
-                style={{
-                  minWidth: 52,
-                  textAlign: "center",
-                  fontWeight: 600,
-                  color: "#0f1115",
-                  background: decision.side === "buy" ? "#5ad17a" : "#ff8a80",
-                  borderRadius: 999,
-                  padding: "2px 8px",
-                }}
-              >
-                {decision.side === "buy" ? "Achat" : "Vente"}
-              </span>
-              <span style={{ fontFamily: "monospace", color: "#e6e8eb" }}>
-                {symbolOf(decision.assetId)}
-              </span>
-              <span style={{ color: "#9aa0a6" }}>
-                {decision.quantity} @ {decision.referencePrice}
-              </span>
-              <span
-                style={{ marginLeft: "auto", color: "#5f6671", fontSize: 12 }}
-                title={`Enregistre: ${decision.createdAt}`}
-              >
-                {decision.logicalTimestamp}
-              </span>
-            </li>
+          {entries.map((entry) => (
+            <DecisionRow
+              key={entry.decision.id}
+              decision={entry.decision}
+              amendments={entry.amendments}
+              assets={assets}
+              symbol={symbolOf(entry.decision.assetId)}
+              onAmend={onAmend}
+              disabled={disabled}
+            />
           ))}
         </ol>
       )}
@@ -758,14 +796,417 @@ function DecisionHistory({
   );
 }
 
+const REVISION_BADGE: Record<string, { label: string; color: string }> = {
+  corrected: { label: "Corrigé", color: "#ffb86b" },
+  cancelled: { label: "Annulé", color: "#ff8a80" },
+};
+
+type AmendMode = "none" | "comment" | "correction" | "cancellation";
+
+const miniInputStyle: React.CSSProperties = {
+  padding: "6px 10px",
+  fontSize: 13,
+  color: "#e6e8eb",
+  background: "#0f1115",
+  border: "1px solid #2a2f37",
+  borderRadius: 6,
+};
+
+function linkButtonStyle(enabled: boolean): React.CSSProperties {
+  return {
+    padding: "2px 6px",
+    fontSize: 12,
+    color: enabled ? "#9aa0a6" : "#5f6671",
+    background: "transparent",
+    border: "1px solid #2a2f37",
+    borderRadius: 6,
+    cursor: enabled ? "pointer" : "not-allowed",
+  };
+}
+
+function DecisionRow({
+  decision,
+  amendments,
+  assets,
+  symbol,
+  onAmend,
+  disabled,
+}: {
+  decision: Decision;
+  amendments: DecisionTimelineEntry["amendments"];
+  assets: TrackedAsset[];
+  symbol: string;
+  onAmend?: (
+    decisionId: string,
+    payload: AmendDecisionRequest,
+  ) => Promise<boolean>;
+  disabled: boolean;
+}) {
+  const [mode, setMode] = useState<AmendMode>("none");
+
+  const revision = decision.revisionStatus ?? "original";
+  const cancelled = revision === "cancelled";
+  const badge = REVISION_BADGE[revision];
+  // A cancelled decision is terminal: no further amendment is possible.
+  const canAmend = Boolean(onAmend) && !cancelled;
+
+  const toggle = (next: AmendMode) =>
+    setMode((current) => (current === next ? "none" : next));
+
+  const submit = async (payload: AmendDecisionRequest) => {
+    if (!onAmend) return;
+    const ok = await onAmend(decision.id, payload);
+    if (ok) setMode("none");
+  };
+
+  return (
+    <li
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 6,
+        padding: "6px 10px",
+        fontSize: 13,
+        background: "#0f1115",
+        border: "1px solid #2a2f37",
+        borderRadius: 8,
+        opacity: cancelled ? 0.6 : 1,
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <span
+          style={{
+            minWidth: 52,
+            textAlign: "center",
+            fontWeight: 600,
+            color: "#0f1115",
+            background: decision.side === "buy" ? "#5ad17a" : "#ff8a80",
+            borderRadius: 999,
+            padding: "2px 8px",
+            textDecoration: cancelled ? "line-through" : "none",
+          }}
+        >
+          {decision.side === "buy" ? "Achat" : "Vente"}
+        </span>
+        <span style={{ fontFamily: "monospace", color: "#e6e8eb" }}>{symbol}</span>
+        <span style={{ color: "#9aa0a6" }}>
+          {decision.quantity} @ {decision.referencePrice}
+        </span>
+        {badge && (
+          <span
+            style={{
+              fontSize: 11,
+              fontWeight: 600,
+              color: badge.color,
+              border: `1px solid ${badge.color}`,
+              borderRadius: 999,
+              padding: "1px 6px",
+            }}
+          >
+            {badge.label}
+          </span>
+        )}
+        <span
+          style={{ marginLeft: "auto", color: "#5f6671", fontSize: 12 }}
+          title={`Enregistre: ${decision.createdAt}`}
+        >
+          {decision.logicalTimestamp}
+        </span>
+      </div>
+
+      {decision.comment && (
+        <p
+          style={{
+            margin: 0,
+            color: "#c2c7cf",
+            fontSize: 12,
+            fontStyle: "italic",
+          }}
+        >
+          💬 {decision.comment}
+        </p>
+      )}
+
+      {amendments.length > 0 && (
+        <div
+          style={{
+            padding: "4px 8px",
+            borderLeft: "2px solid #2a2f37",
+            display: "flex",
+            flexDirection: "column",
+            gap: 4,
+          }}
+        >
+          {amendments.map((amendment) => (
+            <AmendmentLine key={amendment.id} amendment={amendment} />
+          ))}
+        </div>
+      )}
+
+      {canAmend && (
+        <div style={{ display: "flex", gap: 6 }}>
+          <button
+            type="button"
+            onClick={() => toggle("comment")}
+            disabled={disabled}
+            style={linkButtonStyle(!disabled)}
+          >
+            Commenter
+          </button>
+          <button
+            type="button"
+            onClick={() => toggle("correction")}
+            disabled={disabled}
+            style={linkButtonStyle(!disabled)}
+          >
+            Corriger
+          </button>
+          <button
+            type="button"
+            onClick={() => toggle("cancellation")}
+            disabled={disabled}
+            style={linkButtonStyle(!disabled)}
+          >
+            Annuler
+          </button>
+        </div>
+      )}
+
+      {canAmend && mode === "comment" && (
+        <CommentEditor disabled={disabled} onSubmit={submit} />
+      )}
+      {canAmend && mode === "correction" && (
+        <CorrectionEditor
+          decision={decision}
+          assets={assets}
+          disabled={disabled}
+          onSubmit={submit}
+        />
+      )}
+      {canAmend && mode === "cancellation" && (
+        <CancellationEditor disabled={disabled} onSubmit={submit} />
+      )}
+    </li>
+  );
+}
+
+function AmendmentLine({
+  amendment,
+}: {
+  amendment: DecisionTimelineEntry["amendments"][number];
+}) {
+  const label =
+    amendment.kind === "comment"
+      ? "Commentaire"
+      : amendment.kind === "correction"
+        ? "Correction"
+        : "Annulation";
+  const summary =
+    amendment.kind === "comment"
+      ? amendment.comment
+      : amendment.kind === "correction"
+        ? [
+            amendment.reason,
+            amendment.replacement
+              ? `${amendment.replacement.assetId} · ${amendment.replacement.side} · ${amendment.replacement.quantity} @ ${amendment.replacement.referencePrice}${
+                  amendment.replacement.logicalTimestamp
+                    ? ` · ${amendment.replacement.logicalTimestamp}`
+                    : ""
+                }`
+              : null,
+          ]
+            .filter(Boolean)
+            .join(" — ")
+        : amendment.reason;
+
+  return (
+    <div style={{ display: "flex", gap: 6, fontSize: 12, color: "#c2c7cf" }}>
+      <strong style={{ color: "#9aa0a6" }}>{label}</strong>
+      <span>{summary ?? "Aucun detail"}</span>
+    </div>
+  );
+}
+
+function CommentEditor({
+  disabled,
+  onSubmit,
+}: {
+  disabled: boolean;
+  onSubmit: (payload: AmendDecisionRequest) => void;
+}) {
+  const [comment, setComment] = useState("");
+  const canSave = !disabled && comment.trim().length > 0;
+  return (
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (canSave) onSubmit({ kind: "comment", comment: comment.trim() });
+      }}
+      style={{ display: "flex", gap: 6 }}
+    >
+      <input
+        type="text"
+        value={comment}
+        onChange={(event) => setComment(event.target.value)}
+        placeholder="Commentaire court"
+        aria-label="Commentaire de la decision"
+        maxLength={280}
+        style={{ ...miniInputStyle, flex: 1 }}
+      />
+      <button type="submit" disabled={!canSave} style={linkButtonStyle(canSave)}>
+        Enregistrer
+      </button>
+    </form>
+  );
+}
+
+function CorrectionEditor({
+  decision,
+  assets,
+  disabled,
+  onSubmit,
+}: {
+  decision: Decision;
+  assets: TrackedAsset[];
+  disabled: boolean;
+  onSubmit: (payload: AmendDecisionRequest) => void;
+}) {
+  const [assetId, setAssetId] = useState(decision.assetId);
+  const [side, setSide] = useState<DecisionSide>(decision.side);
+  const [quantity, setQuantity] = useState(decision.quantity);
+  const [referencePrice, setReferencePrice] = useState(decision.referencePrice);
+  const [reason, setReason] = useState("");
+
+  const amountsValid =
+    /^\d+(\.\d+)?$/.test(quantity.trim()) &&
+    Number(quantity) > 0 &&
+    /^\d+(\.\d+)?$/.test(referencePrice.trim()) &&
+    Number(referencePrice) > 0;
+  const canSave = !disabled && assetId !== "" && amountsValid;
+
+  return (
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (!canSave) return;
+        onSubmit({
+          kind: "correction",
+          ...(reason.trim() ? { reason: reason.trim() } : {}),
+          replacement: {
+            assetId,
+            side,
+            quantity: quantity.trim(),
+            referencePrice: referencePrice.trim(),
+          },
+        });
+      }}
+      style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}
+    >
+      <select
+        value={assetId}
+        onChange={(event) => setAssetId(event.target.value)}
+        aria-label="Actif corrige"
+        style={miniInputStyle}
+      >
+        {assets.map((asset) => (
+          <option key={asset.id} value={asset.id}>
+            {asset.symbol}
+          </option>
+        ))}
+      </select>
+      <select
+        value={side}
+        onChange={(event) => setSide(event.target.value as DecisionSide)}
+        aria-label="Sens corrige"
+        style={miniInputStyle}
+      >
+        <option value="buy">Achat</option>
+        <option value="sell">Vente</option>
+      </select>
+      <input
+        type="text"
+        inputMode="decimal"
+        value={quantity}
+        onChange={(event) => setQuantity(event.target.value)}
+        placeholder="Quantite"
+        aria-label="Quantite corrigee"
+        style={{ ...miniInputStyle, width: 80 }}
+      />
+      <input
+        type="text"
+        inputMode="decimal"
+        value={referencePrice}
+        onChange={(event) => setReferencePrice(event.target.value)}
+        placeholder="Prix"
+        aria-label="Prix corrige"
+        style={{ ...miniInputStyle, width: 80 }}
+      />
+      <input
+        type="text"
+        value={reason}
+        onChange={(event) => setReason(event.target.value)}
+        placeholder="Motif (optionnel)"
+        aria-label="Motif de la correction"
+        maxLength={280}
+        style={{ ...miniInputStyle, flex: 1, minWidth: 120 }}
+      />
+      <button type="submit" disabled={!canSave} style={linkButtonStyle(canSave)}>
+        Enregistrer
+      </button>
+    </form>
+  );
+}
+
+function CancellationEditor({
+  disabled,
+  onSubmit,
+}: {
+  disabled: boolean;
+  onSubmit: (payload: AmendDecisionRequest) => void;
+}) {
+  const [reason, setReason] = useState("");
+  return (
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (disabled) return;
+        onSubmit({
+          kind: "cancellation",
+          ...(reason.trim() ? { reason: reason.trim() } : {}),
+        });
+      }}
+      style={{ display: "flex", gap: 6 }}
+    >
+      <input
+        type="text"
+        value={reason}
+        onChange={(event) => setReason(event.target.value)}
+        placeholder="Motif d'annulation (optionnel)"
+        aria-label="Motif de l'annulation"
+        maxLength={280}
+        style={{ ...miniInputStyle, flex: 1 }}
+      />
+      <button
+        type="submit"
+        disabled={disabled}
+        style={{ ...linkButtonStyle(!disabled), color: "#ff8a80", borderColor: "#ff8a80" }}
+      >
+        Confirmer l&apos;annulation
+      </button>
+    </form>
+  );
+}
+
 function ClosedSessionCard({
   session,
   assets,
   decisions,
+  timeline,
 }: {
   session: Session;
   assets: TrackedAsset[];
   decisions: Decision[];
+  timeline: DecisionTimelineEntry[] | null;
 }) {
   return (
     <div style={cardStyle}>
@@ -782,7 +1223,7 @@ function ClosedSessionCard({
       </dl>
 
       {/* History stays consultable after close (AC 2). */}
-      <DecisionHistory decisions={decisions} assets={assets} />
+      <DecisionHistory decisions={decisions} timeline={timeline} assets={assets} />
     </div>
   );
 }

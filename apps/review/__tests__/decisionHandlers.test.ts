@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   createDbClient,
+  createSqliteDecisionAmendmentRepository,
   createSqliteDecisionRepository,
   createSqliteSessionAssetRepository,
   createSqliteSessionRepository,
@@ -11,6 +12,7 @@ import {
   closeSession,
   createSession,
   systemSessionDeps,
+  type DecisionAmendmentRepository,
   type DecisionRepository,
 } from "@training-trade/domain";
 import {
@@ -29,10 +31,14 @@ function postRequest(body: unknown): Request {
 describe("decision API handlers (integration over SQLite)", () => {
   let client: DbClient;
   let repo: DecisionRepository;
+  // Listing goes through the amendment-aware repository so the effective
+  // decision (latest comment + applied correction/cancellation) is returned.
+  let listRepo: DecisionAmendmentRepository;
 
   beforeEach(() => {
     client = createDbClient(":memory:");
     repo = createSqliteDecisionRepository(client);
+    listRepo = createSqliteDecisionAmendmentRepository(client);
   });
 
   afterEach(() => {
@@ -100,14 +106,16 @@ describe("decision API handlers (integration over SQLite)", () => {
     await handleCaptureDecision(repo, sessionId, postRequest(capturePayload(assetId)));
     await handleCaptureDecision(repo, sessionId, postRequest(capturePayload(assetId)));
 
-    const list = await handleListSessionDecisions(repo, sessionId).json();
+    const list = await handleListSessionDecisions(listRepo, sessionId).json();
     expect(list.data.decisions).toHaveLength(2);
+    expect(list.data.timeline).toHaveLength(2);
   });
 
   it("GET returns an empty list for a session without decisions", async () => {
     const { sessionId } = openSessionWithAsset();
-    const body = await handleListSessionDecisions(repo, sessionId).json();
+    const body = await handleListSessionDecisions(listRepo, sessionId).json();
     expect(body.data.decisions).toEqual([]);
+    expect(body.data.timeline).toEqual([]);
   });
 
   it("POST returns a structured 400 for an invalid payload", async () => {
@@ -192,7 +200,7 @@ describe("decision API handlers (integration over SQLite)", () => {
   });
 
   it("GET returns a structured 500 when storage fails", async () => {
-    const failingRepo: DecisionRepository = {
+    const failingRepo: DecisionAmendmentRepository = {
       transaction: () => {
         throw new Error("storage unavailable");
       },
@@ -240,7 +248,7 @@ describe("decision API handlers (integration over SQLite)", () => {
     ).toBe(201);
 
     // Replay is ordered by logical timestamp (sell at 09:00 first).
-    const listed = await handleListSessionDecisions(repo, sessionId).json();
+    const listed = await handleListSessionDecisions(listRepo, sessionId).json();
     expect(listed.data.decisions.map((d: { side: string }) => d.side)).toEqual([
       "sell",
       "buy",
@@ -258,10 +266,11 @@ describe("decision API handlers (integration over SQLite)", () => {
     expect(refused.status).toBe(409);
 
     // The history stays consultable and unchanged after close.
-    const afterClose = await handleListSessionDecisions(repo, sessionId).json();
+    const afterClose = await handleListSessionDecisions(listRepo, sessionId).json();
     expect(afterClose.data.decisions.map((d: { side: string }) => d.side)).toEqual([
       "sell",
       "buy",
     ]);
+    expect(afterClose.data.timeline).toHaveLength(2);
   });
 });
