@@ -4,13 +4,19 @@ import {
   fail,
   type ApiError,
 } from "@training-trade/shared";
+import { applyCorsHeaders } from "./cors";
 
 /** Serialise a response body as JSON with the given HTTP status. */
-export function jsonResponse(body: unknown, status: number): Response {
-  return new Response(JSON.stringify(body), {
+export function jsonResponse(
+  body: unknown,
+  status: number,
+  request?: Request,
+): Response {
+  const response = new Response(JSON.stringify(body), {
     status,
     headers: { "content-type": "application/json" },
   });
+  return request ? applyCorsHeaders(response, request) : response;
 }
 
 function isSqliteActiveSessionConflict(error: unknown): boolean {

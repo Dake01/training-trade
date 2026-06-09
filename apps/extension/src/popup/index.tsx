@@ -7,6 +7,10 @@ import type {
   TrackedAsset,
 } from "@training-trade/shared";
 
+// Copied from packages/shared/src/schemas/decision.ts — Zod can't be bundled in the popup by Plasmo/Parcel
+const ISO_DATETIME_RE =
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/;
+
 /**
  * Light popup entry point. It only talks to the review app's API (active
  * session, its tracked assets, and decision capture/replay) and never touches
@@ -19,6 +23,16 @@ type ActiveData = { session: SessionContext | null };
 type AssetsData = { assets: TrackedAsset[] };
 type DecisionsData = { decisions: Decision[] };
 type CaptureDecisionData = { decision: Decision };
+
+type TvTimestampMessage = { type: "TV_TIMESTAMP"; isoTimestamp: string | null };
+
+function formatLogicalTime(isoStr: string): string {
+  try {
+    return new Date(isoStr).toISOString().slice(0, 19).replace("T", " ");
+  } catch {
+    return isoStr;
+  }
+}
 
 function Popup() {
   const [session, setSession] = useState<SessionContext | null>(null);
@@ -33,6 +47,38 @@ function Popup() {
   const [assetId, setAssetId] = useState("");
   const [quantity, setQuantity] = useState("");
   const [referencePrice, setReferencePrice] = useState("");
+  const [logicalTimestamp, setLogicalTimestamp] = useState("");
+  const [autoTimestamp, setAutoTimestamp] = useState<string | null>(null);
+
+  // Listen for TV_TIMESTAMP messages from the TradingView content script
+  useEffect(() => {
+    if (typeof chrome === "undefined" || !chrome.runtime?.onMessage) return;
+
+    const handleMessage = (msg: unknown) => {
+      if (
+        msg &&
+        typeof msg === "object" &&
+        "type" in msg &&
+        (msg as TvTimestampMessage).type === "TV_TIMESTAMP" &&
+        "isoTimestamp" in msg
+      ) {
+        const ts = (msg as TvTimestampMessage).isoTimestamp;
+        if (ts) setAutoTimestamp(ts);
+      }
+    };
+
+    chrome.runtime.onMessage.addListener(handleMessage);
+    return () => {
+      chrome.runtime.onMessage.removeListener(handleMessage);
+    };
+  }, []);
+
+  // Pre-fill logicalTimestamp from content script only if the field is empty
+  useEffect(() => {
+    if (autoTimestamp) {
+      setLogicalTimestamp((prev) => (prev === "" ? autoTimestamp : prev));
+    }
+  }, [autoTimestamp]);
 
   const loadDecisions = useCallback(async (sessionId: string) => {
     const res = await fetch(
@@ -96,24 +142,35 @@ function Popup() {
     Number(quantity) > 0 &&
     /^\d+(\.\d+)?$/.test(referencePrice.trim()) &&
     Number(referencePrice) > 0;
-  const canCapture = !busy && effectiveAssetId !== "" && amountsValid;
+
+  const trimmedTs = logicalTimestamp.trim();
+  const logicalTimestampValid =
+    trimmedTs === "" || ISO_DATETIME_RE.test(trimmedTs);
+
+  const canCapture =
+    !busy && effectiveAssetId !== "" && amountsValid && logicalTimestampValid;
 
   const capture = async (side: DecisionSide) => {
     if (!session || !canCapture) return;
     setBusy(true);
     setCaptureError(null);
     try {
+      const payload: Record<string, string> = {
+        assetId: effectiveAssetId,
+        side,
+        quantity: quantity.trim(),
+        referencePrice: referencePrice.trim(),
+      };
+      if (trimmedTs && logicalTimestampValid) {
+        payload.logicalTimestamp = trimmedTs;
+      }
+
       const res = await fetch(
         `${API_BASE}/api/sessions/${encodeURIComponent(session.id)}/decisions`,
         {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            assetId: effectiveAssetId,
-            side,
-            quantity: quantity.trim(),
-            referencePrice: referencePrice.trim(),
-          }),
+          body: JSON.stringify(payload),
         },
       );
       const body = (await res.json()) as ApiResponse<CaptureDecisionData>;
@@ -185,6 +242,23 @@ function Popup() {
                     style={{ width: "50%", fontSize: 12, padding: 4 }}
                   />
                 </div>
+                <input
+                  type="text"
+                  value={logicalTimestamp}
+                  onChange={(event) => setLogicalTimestamp(event.target.value)}
+                  placeholder="Horodatage (ex: 2025-01-15T09:30:00Z)"
+                  aria-label="Horodatage logique (optionnel)"
+                  style={{
+                    fontSize: 11,
+                    padding: 4,
+                    borderColor: !logicalTimestampValid ? "#ff8a80" : undefined,
+                  }}
+                />
+                {!logicalTimestampValid && (
+                  <p style={{ margin: 0, fontSize: 11, color: "#ff8a80" }}>
+                    Format invalide. Ex&nbsp;: 2025-01-15T09:30:00Z
+                  </p>
+                )}
                 <div style={{ display: "flex", gap: 6 }}>
                   <button
                     type="button"
@@ -224,6 +298,10 @@ function Popup() {
                       {decision.side === "buy" ? "Achat" : "Vente"}
                     </span>{" "}
                     {decision.quantity} @ {decision.referencePrice}
+                    {" — "}
+                    <span style={{ color: "#9aa0a6", fontSize: 11 }}>
+                      {formatLogicalTime(decision.logicalTimestamp)}
+                    </span>
                   </li>
                 ))}
               </ul>
