@@ -3,7 +3,7 @@ import { dirname, isAbsolute, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import Database from "better-sqlite3";
 import { drizzle, type BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
-import * as schema from "./schema/sessions";
+import * as schema from "./schema";
 
 /**
  * Default local SQLite path for development. SQLite is the V1 source of truth
@@ -42,6 +42,35 @@ export function ensureSchema(sqlite: Database.Database): void {
     );
     CREATE UNIQUE INDEX IF NOT EXISTS uniq_active_session
       ON sessions (status) WHERE status = 'open';
+
+    CREATE TABLE IF NOT EXISTS assets (
+      id TEXT PRIMARY KEY,
+      symbol TEXT NOT NULL,
+      name TEXT,
+      created_at TEXT NOT NULL
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS uniq_asset_symbol
+      ON assets (symbol);
+
+    CREATE TABLE IF NOT EXISTS session_assets (
+      session_id TEXT NOT NULL REFERENCES sessions (id),
+      asset_id TEXT NOT NULL REFERENCES assets (id),
+      linked_at TEXT NOT NULL,
+      PRIMARY KEY (session_id, asset_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS decisions (
+      id TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL REFERENCES sessions (id),
+      asset_id TEXT NOT NULL REFERENCES assets (id),
+      side TEXT NOT NULL,
+      quantity TEXT NOT NULL,
+      reference_price TEXT NOT NULL,
+      logical_timestamp TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_decisions_session_order
+      ON decisions (session_id, logical_timestamp, created_at, id);
   `);
 }
 

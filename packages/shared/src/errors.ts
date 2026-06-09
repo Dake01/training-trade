@@ -7,6 +7,7 @@ export const ERROR_CODES = {
   SESSION_NOT_FOUND: "SESSION_NOT_FOUND",
   SESSION_ALREADY_CLOSED: "SESSION_ALREADY_CLOSED",
   SESSION_NOT_ACTIVE: "SESSION_NOT_ACTIVE",
+  ASSET_NOT_IN_SESSION: "ASSET_NOT_IN_SESSION",
   VALIDATION_ERROR: "VALIDATION_ERROR",
   INTERNAL_ERROR: "INTERNAL_ERROR",
 } as const;
@@ -38,6 +39,11 @@ export const apiErrors = {
   sessionNotActive: (): ApiError => ({
     code: ERROR_CODES.SESSION_NOT_ACTIVE,
     message: "La session n'est pas active.",
+    status: 409,
+  }),
+  assetNotInSession: (): ApiError => ({
+    code: ERROR_CODES.ASSET_NOT_IN_SESSION,
+    message: "L'actif n'est pas associe a cette session.",
     status: 409,
   }),
   validation: (message = "Requete invalide."): ApiError => ({

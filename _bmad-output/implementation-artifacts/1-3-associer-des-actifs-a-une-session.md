@@ -2,7 +2,7 @@
 story_id: "1.3"
 story_key: "1-3-associer-des-actifs-a-une-session"
 epic: "1"
-status: "ready-for-dev"
+status: "done"
 baseline_commit: "50d5acd"
 created: "2026-06-09T10:54:26+02:00"
 source_epics: "_bmad-output/planning-artifacts/epics.md"
@@ -12,7 +12,7 @@ source_prd: "_bmad-output/planning-artifacts/prds/prd-training-trade-2026-06-08/
 
 # Story 1.3: Associer des actifs à une session
 
-Status: ready-for-dev
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -37,70 +37,77 @@ so that je puisse cadrer le replay autour des instruments suivis.
 
 ## Tasks / Subtasks
 
-- [ ] Définir les contrats partagés d'actifs suivis (AC: 1, 2)
-  - [ ] Ajouter un DTO `TrackedAsset` dans `packages/shared/src/schemas/sessionAsset.ts` ou nom équivalent, exporté par `packages/shared/src/index.ts`.
-  - [ ] Champs minimaux recommandés: `id`, `symbol`, `name`, `createdAt`, `linkedAt`; tous les timestamps API restent ISO 8601.
-  - [ ] Ajouter `addSessionAssetRequestSchema`, `addSessionAssetResponseSchema` et `sessionAssetsResponseSchema`.
-  - [ ] Valider `symbol`: trim, non vide, longueur raisonnable, caractères compatibles symboles de marché (`AAPL`, `NASDAQ:AAPL`, `BTC/USDT`, `EURUSD`, etc.). Normaliser en uppercase côté domaine/service avant persistance.
-  - [ ] Réutiliser `VALIDATION_ERROR`, `SESSION_NOT_FOUND` et `SESSION_NOT_ACTIVE`; ne pas modifier les codes existants.
+- [x] Définir les contrats partagés d'actifs suivis (AC: 1, 2)
+  - [x] Ajouter un DTO `TrackedAsset` dans `packages/shared/src/schemas/sessionAsset.ts` ou nom équivalent, exporté par `packages/shared/src/index.ts`.
+  - [x] Champs minimaux recommandés: `id`, `symbol`, `name`, `createdAt`, `linkedAt`; tous les timestamps API restent ISO 8601.
+  - [x] Ajouter `addSessionAssetRequestSchema`, `addSessionAssetResponseSchema` et `sessionAssetsResponseSchema`.
+  - [x] Valider `symbol`: trim, non vide, longueur raisonnable, caractères compatibles symboles de marché (`AAPL`, `NASDAQ:AAPL`, `BTC/USDT`, `EURUSD`, etc.). Normaliser en uppercase côté domaine/service avant persistance.
+  - [x] Réutiliser `VALIDATION_ERROR`, `SESSION_NOT_FOUND` et `SESSION_NOT_ACTIVE`; ne pas modifier les codes existants.
 
-- [ ] Implémenter le modèle métier d'association d'actifs dans `packages/domain` (AC: 1, 2)
-  - [ ] Créer des types domaine `AssetRecord`, `SessionAssetRecord`, `SessionAssetRepository` et `SessionAssetStore` dans `packages/domain/src/sessions/` ou un sous-module clair.
-  - [ ] Créer `addSessionAsset(repo, deps, sessionId, input)`:
-    - [ ] refuse une session inexistante avec `SessionNotFoundError`;
-    - [ ] refuse une session non `open` avec `SessionNotActiveError`;
-    - [ ] normalise le symbole avant toute comparaison;
-    - [ ] crée l'actif s'il n'existe pas encore;
-    - [ ] lie l'actif à la session;
-    - [ ] reste idempotent si le même actif est déjà lié à cette session, sans créer de doublon.
-  - [ ] Créer `listSessionAssets(repo, sessionId)`:
-    - [ ] refuse une session inconnue;
-    - [ ] retourne les actifs liés dans un ordre stable, recommandé `linkedAt ASC, symbol ASC`.
-  - [ ] Ne pas créer de décision buy/sell, de portefeuille, de prix de marché ou de synchronisation TradingView dans cette story.
+- [x] Implémenter le modèle métier d'association d'actifs dans `packages/domain` (AC: 1, 2)
+  - [x] Créer des types domaine `AssetRecord`, `SessionAssetRecord`, `SessionAssetRepository` et `SessionAssetStore` dans `packages/domain/src/sessions/` ou un sous-module clair.
+  - [x] Créer `addSessionAsset(repo, deps, sessionId, input)`:
+    - [x] refuse une session inexistante avec `SessionNotFoundError`;
+    - [x] refuse une session non `open` avec `SessionNotActiveError`;
+    - [x] normalise le symbole avant toute comparaison;
+    - [x] crée l'actif s'il n'existe pas encore;
+    - [x] lie l'actif à la session;
+    - [x] reste idempotent si le même actif est déjà lié à cette session, sans créer de doublon.
+  - [x] Créer `listSessionAssets(repo, sessionId)`:
+    - [x] refuse une session inconnue;
+    - [x] retourne les actifs liés dans un ordre stable, recommandé `linkedAt ASC, symbol ASC`.
+  - [x] Ne pas créer de décision buy/sell, de portefeuille, de prix de marché ou de synchronisation TradingView dans cette story.
 
-- [ ] Étendre la persistance SQLite/Drizzle (AC: 1, 2)
-  - [ ] Ajouter une table `assets` en `snake_case`: `id`, `symbol`, `name`, `created_at`.
-  - [ ] Ajouter une table de liaison `session_assets`: `session_id`, `asset_id`, `linked_at`.
-  - [ ] Contraintes minimales:
-    - [ ] `assets.id` clé primaire;
-    - [ ] `assets.symbol` unique après normalisation;
-    - [ ] `session_assets.session_id` référence `sessions.id`;
-    - [ ] `session_assets.asset_id` référence `assets.id`;
-    - [ ] unicité `(session_id, asset_id)` pour empêcher les doublons.
-  - [ ] Mettre à jour `ensureSchema` dans `packages/db/src/client.ts` avec `CREATE TABLE IF NOT EXISTS` et `CREATE UNIQUE INDEX IF NOT EXISTS`, sans casser les bases créées par les stories 1.1 et 1.2.
-  - [ ] Ajouter `createSqliteSessionAssetRepository` ou équivalent dans `packages/db/src/repository/`, en gardant le mapping DB `snake_case` -> domaine/API `camelCase`.
-  - [ ] Préserver `createSqliteSessionRepository`, `getDefaultSessionRepository` et l'index `uniq_active_session`.
+- [x] Étendre la persistance SQLite/Drizzle (AC: 1, 2)
+  - [x] Ajouter une table `assets` en `snake_case`: `id`, `symbol`, `name`, `created_at`.
+  - [x] Ajouter une table de liaison `session_assets`: `session_id`, `asset_id`, `linked_at`.
+  - [x] Contraintes minimales:
+    - [x] `assets.id` clé primaire;
+    - [x] `assets.symbol` unique après normalisation;
+    - [x] `session_assets.session_id` référence `sessions.id`;
+    - [x] `session_assets.asset_id` référence `assets.id`;
+    - [x] unicité `(session_id, asset_id)` pour empêcher les doublons.
+  - [x] Mettre à jour `ensureSchema` dans `packages/db/src/client.ts` avec `CREATE TABLE IF NOT EXISTS` et `CREATE UNIQUE INDEX IF NOT EXISTS`, sans casser les bases créées par les stories 1.1 et 1.2.
+  - [x] Ajouter `createSqliteSessionAssetRepository` ou équivalent dans `packages/db/src/repository/`, en gardant le mapping DB `snake_case` -> domaine/API `camelCase`.
+  - [x] Préserver `createSqliteSessionRepository`, `getDefaultSessionRepository` et l'index `uniq_active_session`.
 
-- [ ] Exposer les endpoints Next.js nécessaires (AC: 1, 2)
-  - [ ] Ajouter `POST /api/sessions/[id]/assets` pour lier un actif à une session ouverte.
-  - [ ] Ajouter `GET /api/sessions/[id]/assets` pour consulter les actifs associés.
-  - [ ] Garder `export const runtime = "nodejs"` et `export const dynamic = "force-dynamic"` sur ces route handlers car SQLite local utilise `better-sqlite3`.
-  - [ ] Ajouter des handlers testables dans `apps/review/src/server/sessionHandlers.ts` ou un fichier serveur voisin: les route handlers restent minces.
-  - [ ] Retourner tous les succès au format `{ data, error, meta }`.
-  - [ ] Retourner `400 VALIDATION_ERROR` pour payload invalide, `404 SESSION_NOT_FOUND`, `409 SESSION_NOT_ACTIVE`, et `500 INTERNAL_ERROR` structuré pour erreur inattendue.
+- [x] Exposer les endpoints Next.js nécessaires (AC: 1, 2)
+  - [x] Ajouter `POST /api/sessions/[id]/assets` pour lier un actif à une session ouverte.
+  - [x] Ajouter `GET /api/sessions/[id]/assets` pour consulter les actifs associés.
+  - [x] Garder `export const runtime = "nodejs"` et `export const dynamic = "force-dynamic"` sur ces route handlers car SQLite local utilise `better-sqlite3`.
+  - [x] Ajouter des handlers testables dans `apps/review/src/server/sessionHandlers.ts` ou un fichier serveur voisin: les route handlers restent minces.
+  - [x] Retourner tous les succès au format `{ data, error, meta }`.
+  - [x] Retourner `400 VALIDATION_ERROR` pour payload invalide, `404 SESSION_NOT_FOUND`, `409 SESSION_NOT_ACTIVE`, et `500 INTERNAL_ERROR` structuré pour erreur inattendue.
 
-- [ ] Rendre les actifs visibles dans l'expérience review et extension (AC: 1, 2)
-  - [ ] Dans `apps/review/src/components/SessionPanel.tsx`, charger les actifs de la session active et les afficher dans la carte de session.
-  - [ ] Ajouter une saisie rapide d'actif quand une session est active: champ symbole + bouton direct; aucun formulaire lourd.
-  - [ ] Après ajout, rafraîchir la liste d'actifs sans perdre l'état d'erreur ou de session active.
-  - [ ] Dans `apps/extension/src/popup/index.tsx`, conserver l'accès uniquement via l'API review; ne jamais importer `packages/db`.
-  - [ ] L'extension peut afficher la liste des actifs ou proposer l'ajout rapide, mais toute persistance passe par `POST /api/sessions/[id]/assets`.
-  - [ ] Garder l'UX desktop-first, dense et rapide. Pas de page de gestion complète d'actifs, pas de design system, pas d'intégration automatique TradingView.
+- [x] Rendre les actifs visibles dans l'expérience review et extension (AC: 1, 2)
+  - [x] Dans `apps/review/src/components/SessionPanel.tsx`, charger les actifs de la session active et les afficher dans la carte de session.
+  - [x] Ajouter une saisie rapide d'actif quand une session est active: champ symbole + bouton direct; aucun formulaire lourd.
+  - [x] Après ajout, rafraîchir la liste d'actifs sans perdre l'état d'erreur ou de session active.
+  - [x] Dans `apps/extension/src/popup/index.tsx`, conserver l'accès uniquement via l'API review; ne jamais importer `packages/db`.
+  - [x] L'extension peut afficher la liste des actifs ou proposer l'ajout rapide, mais toute persistance passe par `POST /api/sessions/[id]/assets`.
+  - [x] Garder l'UX desktop-first, dense et rapide. Pas de page de gestion complète d'actifs, pas de design system, pas d'intégration automatique TradingView.
 
-- [ ] Couvrir la story par des tests ciblés (AC: 1, 2)
-  - [ ] Tests shared: validation du symbole, réponses add/list, rejet des payloads invalides.
-  - [ ] Tests domaine: ajout sur session `open`, refus session `closed`/`suspended`, refus session inconnue, normalisation, idempotence, plusieurs actifs par session, même actif réutilisable dans plusieurs sessions.
-  - [ ] Tests DB en mémoire: création des tables, unicité `assets.symbol`, unicité `(session_id, asset_id)`, foreign keys, ordre de liste stable.
-  - [ ] Tests API: `POST` succès, `GET` liste, validation 400, session inconnue 404, session non active 409, enveloppe structurée.
-  - [ ] Adapter les tests existants de session sans les affaiblir, en particulier les tests du statut persisté et des transitions 1.2.
+- [x] Couvrir la story par des tests ciblés (AC: 1, 2)
+  - [x] Tests shared: validation du symbole, réponses add/list, rejet des payloads invalides.
+  - [x] Tests domaine: ajout sur session `open`, refus session `closed`/`suspended`, refus session inconnue, normalisation, idempotence, plusieurs actifs par session, même actif réutilisable dans plusieurs sessions.
+  - [x] Tests DB en mémoire: création des tables, unicité `assets.symbol`, unicité `(session_id, asset_id)`, foreign keys, ordre de liste stable.
+  - [x] Tests API: `POST` succès, `GET` liste, validation 400, session inconnue 404, session non active 409, enveloppe structurée.
+  - [x] Adapter les tests existants de session sans les affaiblir, en particulier les tests du statut persisté et des transitions 1.2.
 
-- [ ] Valider la tranche verticale
-  - [ ] Exécuter `pnpm test`.
-  - [ ] Exécuter `pnpm typecheck`.
-  - [ ] Exécuter `pnpm lint`.
-  - [ ] Exécuter `pnpm build`.
-  - [ ] Vérifier manuellement ou par test: créer session -> ajouter deux actifs -> consulter liste -> clôturer session -> ajout d'actif refusé -> liste existante toujours consultable.
-  - [ ] Mettre à jour le `Dev Agent Record` et la `File List`.
+- [x] Valider la tranche verticale
+  - [x] Exécuter `pnpm test`.
+  - [x] Exécuter `pnpm typecheck`.
+  - [x] Exécuter `pnpm lint`.
+  - [x] Exécuter `pnpm build`.
+  - [x] Vérifier manuellement ou par test: créer session -> ajouter deux actifs -> consulter liste -> clôturer session -> ajout d'actif refusé -> liste existante toujours consultable.
+  - [x] Mettre à jour le `Dev Agent Record` et la `File List`.
+
+### Review Findings
+
+- [x] [Review][Patch] Traiter les erreurs structurées lors du chargement des actifs dans l'UI review [apps/review/src/components/SessionPanel.tsx:62]
+- [x] [Review][Patch] Empêcher une réponse tardive d'assets d'une ancienne session d'écraser l'état courant [apps/review/src/components/SessionPanel.tsx:62]
+- [x] [Review][Patch] Traiter les erreurs structurées de l'endpoint assets dans la popup extension [apps/extension/src/popup/index.tsx:37]
+- [x] [Review][Patch] Rendre l'ajout concurrent du même symbole réellement idempotent [packages/db/src/repository/sessionAssetRepository.ts:78]
 
 ## Dev Notes
 
@@ -328,7 +335,7 @@ Erreurs:
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+claude-opus-4-8 (Claude Opus 4.8)
 
 ### Debug Log References
 
@@ -336,12 +343,56 @@ Erreurs:
 - 2026-06-09: Discovery input: epics 1 fichier, architecture 1 fichier, PRD 3 fichiers, UX 0 fichier, project context 0 fichier.
 - 2026-06-09: `sprint-status.yaml` absent au chemin configuré; aucun statut sprint mis à jour.
 - 2026-06-09: Worktree dirty détecté; story inclut les fichiers à préserver avant édition.
+- 2026-06-09 (dev): Worktree propre au démarrage du dev; les corrections non commitées de 1.2 mentionnées dans les Dev Notes ont déjà été intégrées au commit `d3ca9f7`. Aucune correction écrasée.
+- 2026-06-09 (dev): Implémentation en TDD (red-green-refactor) tâche par tâche. 96 tests verts; `pnpm test`, `typecheck`, `lint`, `build` tous OK.
+- 2026-06-09 (dev): Test d'ordre de liste rendu déterministe via horloge contrôlée (le clock système provoquait des `linkedAt` à égalité avec le tie-break `symbol`).
+- 2026-06-09 (review): Code review 1.3 appliquée: erreurs structurées de chargement d'actifs traitées dans l'UI review et la popup extension; réponses tardives d'assets ignorées après changement de session; insertions concurrentes `assets`/`session_assets` rendues idempotentes via `INSERT OR IGNORE` + relecture. 98 tests verts; `pnpm test`, `pnpm typecheck`, `pnpm lint`, `pnpm build` OK.
 
 ### Completion Notes List
 
 - Ultimate context engine analysis completed - comprehensive developer guide created.
 - Story 1.3 prête pour implémentation; elle définit une association d'actifs minimale, durable et compatible avec la future capture de décisions.
+- **AC1 satisfait**: `POST /api/sessions/[id]/assets` enregistre l'actif lié à une session `open`; une session peut contenir plusieurs actifs (catalogue `assets` + liaison `session_assets`). Idempotence garantie (symbole normalisé uppercase, pas de doublon) — `201` au lien créé, `200` si déjà lié.
+- **AC2 satisfait**: `GET /api/sessions/[id]/assets` retourne les actifs liés en ordre stable (`linkedAt ASC, symbol ASC`); la `SessionPanel` et le popup d'extension affichent la liste. Une session `closed` reste consultable mais refuse l'ajout (`409 SESSION_NOT_ACTIVE`).
+- Architecture respectée: contrats Zod + erreurs dans `packages/shared`, règles métier pures dans `packages/domain`, repository SQLite dans `packages/db`, handlers serveur testables dans `apps/review/src/server`, route handlers minces, extension API-only (jamais d'import `packages/db`).
+- Refactor: les helpers HTTP partagés (`jsonResponse`, `toApiError`, `errorResponse`) extraits dans `apps/review/src/server/http.ts` pour réutilisation par `sessionHandlers` et `assetHandlers`; `jsonResponse`/`ok`/`fail`/`apiErrors` et le mapping structuré existant préservés.
+- Schéma DB rétro-compatible: `ensureSchema` ajoute `assets`, `session_assets` et leurs index via `CREATE TABLE/INDEX IF NOT EXISTS`; `sessions` et `uniq_active_session` intacts; `foreign_keys = ON` actif.
+- Écart mineur vs contrat recommandé: `addSessionAsset` (domaine) retourne `{ asset, created }` afin de distinguer `201`/`200` au niveau handler; tests domaine/DB adaptés en conséquence.
+- Hors périmètre respecté: aucune décision buy/sell, portefeuille, prix de marché, intégration TradingView/broker, ni validation externe du symbole.
+- Code review appliquée: les erreurs API assets ne sont plus masquées en listes vides, les réponses tardives ne peuvent plus écraser les assets de la session courante, et les conflits d'insertion concurrente du même actif/lien restent idempotents.
 
 ### File List
 
-À remplir par le dev agent pendant l'implémentation.
+Nouveaux fichiers:
+- `packages/shared/src/schemas/sessionAsset.ts`
+- `packages/shared/src/schemas/__tests__/sessionAsset.test.ts`
+- `packages/domain/src/sessions/assetTypes.ts`
+- `packages/domain/src/sessions/assetMappers.ts`
+- `packages/domain/src/sessions/addSessionAsset.ts`
+- `packages/domain/src/sessions/listSessionAssets.ts`
+- `packages/domain/src/sessions/__tests__/fakeAssetRepo.ts`
+- `packages/domain/src/sessions/__tests__/addSessionAsset.test.ts`
+- `packages/domain/src/sessions/__tests__/listSessionAssets.test.ts`
+- `packages/db/src/schema/assets.ts`
+- `packages/db/src/schema/index.ts`
+- `packages/db/src/repository/sessionAssetRepository.ts`
+- `packages/db/src/repository/__tests__/sessionAssetRepository.test.ts`
+- `apps/review/src/server/http.ts`
+- `apps/review/src/server/assetHandlers.ts`
+- `apps/review/src/app/api/sessions/[id]/assets/route.ts`
+- `apps/review/__tests__/assetHandlers.test.ts`
+
+Fichiers modifiés:
+- `packages/shared/src/index.ts` (export `sessionAsset`)
+- `packages/domain/src/index.ts` (exports actifs)
+- `packages/db/src/client.ts` (`ensureSchema` + import schéma combiné)
+- `packages/db/src/index.ts` (export repository + `getDefaultSessionAssetRepository`, export schéma combiné)
+- `apps/review/src/server/sessionHandlers.ts` (réutilise `./http`)
+- `apps/review/src/components/SessionPanel.tsx` (liste + saisie rapide d'actifs)
+- `apps/extension/src/popup/index.tsx` (affichage liste d'actifs, API-only)
+- `_bmad-output/implementation-artifacts/1-3-associer-des-actifs-a-une-session.md` (suivi story)
+
+### Change Log
+
+- 2026-06-09: Implémentation story 1.3 — association d'actifs à une session (catalogue `assets` + liaison `session_assets`, endpoints `POST`/`GET /api/sessions/[id]/assets`, UI review + popup). 24 nouveaux tests (96 au total). `test`/`typecheck`/`lint`/`build` verts. Status → review.
+- 2026-06-09: Corrections de code review appliquées et validées: 4 findings patch résolus, 2 tests ajoutés (98 au total), `test`/`typecheck`/`lint`/`build` verts. Status → done.
