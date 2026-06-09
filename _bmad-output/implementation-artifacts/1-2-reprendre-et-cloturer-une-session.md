@@ -2,7 +2,7 @@
 story_id: "1.2"
 story_key: "1-2-reprendre-et-cloturer-une-session"
 epic: "1"
-status: "review"
+status: "done"
 baseline_commit: "234b2cc382d6feda2d60f9d590520438320d8382"
 created: "2026-06-08T19:05:55+02:00"
 source_epics: "_bmad-output/planning-artifacts/epics.md"
@@ -12,7 +12,7 @@ source_prd: "_bmad-output/planning-artifacts/prds/prd-training-trade-2026-06-08/
 
 # Story 1.2: Reprendre et clôturer une session
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -107,6 +107,15 @@ so that je puisse gérer proprement mon cycle de pratique.
   - [x] Exécuter `pnpm build`.
   - [x] Vérifier manuellement ou par test que: création `open` -> clôture `closed` -> `GET /api/sessions/active` retourne `null` -> nouvelle création possible.
   - [x] Mettre à jour le `Dev Agent Record` et la `File List` de cette story avec tous les fichiers modifiés.
+
+### Review Findings
+
+- [x] [Review][Patch] Encoder les identifiants de session interpolés dans les URLs dynamiques [apps/review/src/components/SessionPanel.tsx:100]
+- [x] [Review][Patch] Rafraîchir l'état actif après une erreur de reprise pour éviter une UI stale [apps/review/src/components/SessionPanel.tsx:102]
+- [x] [Review][Patch] Préserver le message d'erreur de clôture au lieu de l'effacer via `refreshActive` [apps/review/src/components/SessionPanel.tsx:80]
+- [x] [Review][Patch] Utiliser le payload de reprise réussie avant le fallback `GET /active` [apps/review/src/components/SessionPanel.tsx:106]
+- [x] [Review][Patch] Spécialiser les schémas de réponse `resume` et `close` avec leurs invariants de statut [packages/shared/src/schemas/session.ts:52]
+- [x] [Review][Patch] Valider les statuts persistés avant de les caster en `SessionStatus` [packages/db/src/repository/sessionRepository.ts:15]
 
 ## Dev Notes
 
@@ -371,6 +380,8 @@ claude-opus-4-8 (Claude Code, dev-story workflow)
 - UI review (`SessionPanel`): bouton Clôturer visible seulement si session active, carte « Session cloturee » lisible (`closed`, `closedAt`, décisions indisponibles), reprise minimale par identifiant. `apps/extension` popup inchangé: lit uniquement l'API review, gère `session: null` après clôture, aucun import `packages/db`.
 - Niveau de test aligné sur 1.1 (Vitest, pas de e2e/Playwright introduit). UI couverte par `typecheck`/`lint`/`build` comme en 1.1 (pas de framework de test React dans le repo).
 
+- 2026-06-09: Code review 1.2 appliquée: URLs de session encodées côté UI, erreurs de transition préservées après refresh, reprise réussie basée sur le payload API, schémas `resume`/`close` stricts, validation des statuts SQLite persistés. Validations post-review: 46 tests verts, `typecheck`, `lint`, `build` OK.
+
 ### File List
 
 - `_bmad-output/implementation-artifacts/1-2-reprendre-et-cloturer-une-session.md` (modifié)
@@ -397,3 +408,4 @@ claude-opus-4-8 (Claude Code, dev-story workflow)
 
 - 2026-06-08: Création de la story contextualisée 1.2 avec tâches, contrats API, règles de transition, exigences DB/UI/tests et garde-fous.
 - 2026-06-08: Implémentation de la tranche verticale reprise/clôture: contrats partagés et erreurs structurées, règles métier `resumeSession`/`closeSession`, port repository `findById`/`update`, persistance SQLite, endpoints `POST /api/sessions/[id]/resume` et `/close`, UI review clôture + reprise. 41 tests verts (18 → 41), `typecheck`/`lint`/`build` OK, smoke test HTTP réel conforme. Statut → review.
+- 2026-06-09: Corrections de code review appliquées et validées (`pnpm test`, `pnpm typecheck`, `pnpm lint`, `pnpm build`). Statut → done.

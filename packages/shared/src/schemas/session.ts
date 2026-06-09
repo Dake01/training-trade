@@ -48,12 +48,24 @@ export const activeSessionResponseSchema = z.object({
   session: sessionContextSchema.nullable(),
 });
 
+const resumedSessionSchema = sessionSchema.extend({
+  status: z.literal("open"),
+  closedAt: z.null(),
+  canReceiveDecisions: z.literal(true),
+});
+
+const closedSessionSchema = sessionSchema.extend({
+  status: z.literal("closed"),
+  closedAt: isoDateTime,
+  canReceiveDecisions: z.literal(false),
+});
+
 /** Payload shape for `POST /api/sessions/[id]/resume`. */
 export const resumeSessionResponseSchema = z.object({
-  session: sessionSchema,
+  session: resumedSessionSchema,
 });
 
 /** Payload shape for `POST /api/sessions/[id]/close`. */
 export const closeSessionResponseSchema = z.object({
-  session: sessionSchema,
+  session: closedSessionSchema,
 });

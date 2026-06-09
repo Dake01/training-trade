@@ -4,7 +4,7 @@ import type {
   SessionRepository,
   SessionStore,
 } from "@training-trade/domain";
-import type { SessionStatus } from "@training-trade/shared";
+import { sessionStatusSchema } from "@training-trade/shared";
 import type { DbClient } from "../client";
 import { sessions, type SessionRow } from "../schema/sessions";
 
@@ -12,7 +12,7 @@ import { sessions, type SessionRow } from "../schema/sessions";
 function toRecord(row: SessionRow): SessionRecord {
   return {
     id: row.id,
-    status: row.status as SessionStatus,
+    status: sessionStatusSchema.parse(row.status),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     openedAt: row.openedAt,

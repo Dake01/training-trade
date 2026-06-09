@@ -37,6 +37,20 @@ describe("resumeSessionResponseSchema", () => {
       resumeSessionResponseSchema.parse({ session: openSession }),
     ).toEqual({ session: openSession });
   });
+
+  it("rejects a closed session payload", () => {
+    expect(() =>
+      resumeSessionResponseSchema.parse({ session: closedSession }),
+    ).toThrow();
+  });
+
+  it("rejects an open session that cannot receive decisions", () => {
+    expect(() =>
+      resumeSessionResponseSchema.parse({
+        session: { ...openSession, canReceiveDecisions: false },
+      }),
+    ).toThrow();
+  });
 });
 
 describe("closeSessionResponseSchema", () => {
@@ -45,5 +59,19 @@ describe("closeSessionResponseSchema", () => {
     expect(parsed.session.status).toBe("closed");
     expect(parsed.session.canReceiveDecisions).toBe(false);
     expect(parsed.session.closedAt).toBe("2026-06-08T15:10:00.000Z");
+  });
+
+  it("rejects an open session payload", () => {
+    expect(() =>
+      closeSessionResponseSchema.parse({ session: openSession }),
+    ).toThrow();
+  });
+
+  it("rejects a closed session without a close timestamp", () => {
+    expect(() =>
+      closeSessionResponseSchema.parse({
+        session: { ...closedSession, closedAt: null },
+      }),
+    ).toThrow();
   });
 });

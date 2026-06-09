@@ -92,6 +92,23 @@ describe("createSqliteSessionRepository (integration, in-memory SQLite)", () => 
     expect(repo.findById("does-not-exist")).toBeNull();
   });
 
+  it("rejects persisted rows with an unknown session status", () => {
+    const repo = createSqliteSessionRepository(client);
+    client.sqlite
+      .prepare(
+        `INSERT INTO sessions (id, status, created_at, updated_at, opened_at, closed_at)
+         VALUES (?, 'archived', ?, ?, ?, NULL)`,
+      )
+      .run(
+        "bad-status",
+        "2026-06-08T10:00:00.000Z",
+        "2026-06-08T10:00:00.000Z",
+        "2026-06-08T10:00:00.000Z",
+      );
+
+    expect(() => repo.findById("bad-status")).toThrow();
+  });
+
   it("closes a session: no active session remains and timestamps are preserved", () => {
     const repo = createSqliteSessionRepository(client);
     const created = createSession(repo, systemSessionDeps);

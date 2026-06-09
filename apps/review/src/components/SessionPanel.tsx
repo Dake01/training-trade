@@ -14,6 +14,15 @@ async function readEnvelope<T>(response: Response): Promise<ApiResponse<T>> {
   return (await response.json()) as ApiResponse<T>;
 }
 
+function toActiveContext(session: Session): SessionContext {
+  return {
+    id: session.id,
+    status: session.status,
+    openedAt: session.openedAt,
+    canReceiveDecisions: session.canReceiveDecisions,
+  };
+}
+
 export function SessionPanel() {
   const [active, setActive] = useState<SessionContext | null>(null);
   const [closed, setClosed] = useState<Session | null>(null);
@@ -22,19 +31,24 @@ export function SessionPanel() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const refreshActive = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/sessions/active", { cache: "no-store" });
-      const body = await readEnvelope<ActiveData>(res);
-      setActive(body.data?.session ?? null);
-    } catch {
-      setError("Impossible de charger la session active.");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const refreshActive = useCallback(
+    async ({ clearError = true }: { clearError?: boolean } = {}) => {
+      setLoading(true);
+      if (clearError) {
+        setError(null);
+      }
+      try {
+        const res = await fetch("/api/sessions/active", { cache: "no-store" });
+        const body = await readEnvelope<ActiveData>(res);
+        setActive(body.data?.session ?? null);
+      } catch {
+        setError("Impossible de charger la session active.");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     void refreshActive();
@@ -47,19 +61,15 @@ export function SessionPanel() {
       const res = await fetch("/api/sessions", { method: "POST" });
       const body = await readEnvelope<SessionData>(res);
       if (body.error) {
-        setError(body.error.message);
-        await refreshActive();
+        const message = body.error.message;
+        await refreshActive({ clearError: false });
+        setError(message);
         return;
       }
       const created = body.data?.session;
       if (created) {
         setClosed(null);
-        setActive({
-          id: created.id,
-          status: created.status,
-          openedAt: created.openedAt,
-          canReceiveDecisions: created.canReceiveDecisions,
-        });
+        setActive(toActiveContext(created));
       }
     } catch {
       setError("Impossible de creer la session.");
@@ -73,13 +83,15 @@ export function SessionPanel() {
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`/api/sessions/${active.id}/close`, {
-        method: "POST",
-      });
+      const res = await fetch(
+        `/api/sessions/${encodeURIComponent(active.id)}/close`,
+        { method: "POST" },
+      );
       const body = await readEnvelope<SessionData>(res);
       if (body.error) {
-        setError(body.error.message);
-        await refreshActive();
+        const message = body.error.message;
+        await refreshActive({ clearError: false });
+        setError(message);
         return;
       }
       setActive(null);
@@ -97,15 +109,22 @@ export function SessionPanel() {
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`/api/sessions/${id}/resume`, { method: "POST" });
+      const res = await fetch(`/api/sessions/${encodeURIComponent(id)}/resume`, {
+        method: "POST",
+      });
       const body = await readEnvelope<SessionData>(res);
       if (body.error) {
-        setError(body.error.message);
+        const message = body.error.message;
+        await refreshActive({ clearError: false });
+        setError(message);
         return;
       }
-      setClosed(null);
-      setResumeId("");
-      await refreshActive();
+      const resumed = body.data?.session;
+      if (resumed) {
+        setClosed(null);
+        setResumeId("");
+        setActive(toActiveContext(resumed));
+      }
     } catch {
       setError("Impossible de reprendre la session.");
     } finally {
