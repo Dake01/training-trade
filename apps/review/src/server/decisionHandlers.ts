@@ -1,12 +1,16 @@
 import {
   addDecisionComment,
+  applyDecisionToPortfolio,
   cancelDecision,
   captureDecision,
   correctDecision,
   listDecisionTimeline,
+  rebuildSessionPortfolio,
   systemDecisionDeps,
+  systemSessionDeps,
   type DecisionAmendmentRepository,
   type DecisionRepository,
+  type PortfolioRepository,
 } from "@training-trade/domain";
 import {
   amendDecisionRequestSchema,
@@ -35,6 +39,7 @@ async function readJsonBody(request: Request): Promise<{ ok: true; value: unknow
  */
 export async function handleCaptureDecision(
   repo: DecisionRepository,
+  portfolioRepo: PortfolioRepository,
   id: string,
   request: Request,
 ): Promise<Response> {
@@ -54,6 +59,18 @@ export async function handleCaptureDecision(
 
   try {
     const decision = captureDecision(repo, systemDecisionDeps, id, parsed.data);
+    // Apply the decision to the portfolio — best-effort after successful capture.
+    try {
+      applyDecisionToPortfolio(portfolioRepo, systemSessionDeps, id, {
+        decisionId: decision.id,
+        assetId: decision.assetId,
+        side: decision.side,
+        quantity: decision.quantity,
+        referencePrice: decision.referencePrice,
+      });
+    } catch {
+      // Portfolio update failure does not fail the capture response.
+    }
     return jsonResponse(ok({ decision }), 201);
   } catch (error) {
     return errorResponse(error);
@@ -71,6 +88,7 @@ export async function handleCaptureDecision(
  */
 export async function handleAmendDecision(
   repo: DecisionAmendmentRepository,
+  portfolioRepo: PortfolioRepository,
   sessionId: string,
   decisionId: string,
   request: Request,
@@ -104,6 +122,26 @@ export async function handleAmendDecision(
           : cancelDecision(repo, systemDecisionDeps, sessionId, decisionId, {
               reason: amendment.reason,
             });
+
+    // Corrections and cancellations change the effective portfolio state — rebuild.
+    if (amendment.kind !== "comment") {
+      try {
+        const timeline = listDecisionTimeline(repo, sessionId);
+        const effective = timeline
+          .filter((e) => e.decision.revisionStatus !== "cancelled")
+          .map((e) => ({
+            decisionId: e.decision.id,
+            assetId: e.decision.assetId,
+            side: e.decision.side,
+            quantity: e.decision.quantity,
+            referencePrice: e.decision.referencePrice,
+          }));
+        rebuildSessionPortfolio(portfolioRepo, systemSessionDeps, sessionId, effective);
+      } catch {
+        // Portfolio rebuild failure does not fail the amendment response.
+      }
+    }
+
     return jsonResponse(ok({ decision }), 201);
   } catch (error) {
     return errorResponse(error);

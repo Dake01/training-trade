@@ -2,8 +2,8 @@
 story_id: "2.1"
 story_key: "2-1-initialiser-le-portefeuille-simule"
 epic: "2"
-status: ready-for-dev
-baseline_commit: "317448c"
+status: review
+baseline_commit: "8e5bc4a"
 created: "2026-06-10T13:32:54+02:00"
 source_epics: "_bmad-output/planning-artifacts/epics.md"
 source_architecture: "_bmad-output/planning-artifacts/architecture.md"
@@ -12,7 +12,7 @@ source_prd: "_bmad-output/planning-artifacts/prds/prd-training-trade-2026-06-08/
 
 # Story 2.1: Initialiser le portefeuille simulé
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -235,12 +235,41 @@ claude-sonnet-4-6
 
 - Story créée comme fondation du portefeuille simulé V1 et de son futur historique.
 - La story est volontairement orientée bootstrap + lecture, pas moteur de PnL, pas courbe d'équité, pas stats.
-- Les constantes V1 (capital initial et devise de référence) doivent être centralisées et réutilisées partout.
-- Le repo réel suit `apps/review/src/app/api/...` et `apps/review/src/server/...`; la story documente ce chemin réel pour éviter une implémentation au mauvais endroit.
+- Les constantes V1 `INITIAL_CAPITAL_V1="10000"` et `REFERENCE_CURRENCY_V1="EUR"` centralisées dans `packages/shared/src/schemas/portfolio.ts`.
+- La table `portfolio_snapshots` prépare l'historique de la story 2.3 avec `kind` + `snapshot_index`.
+- L'idempotence est assurée par un index unique partiel sur `(session_id) WHERE kind='bootstrap'`.
+- Bootstrap orchestré dans `handleCreateSession` (couche serveur) pour garantir qu'une session n'est jamais sans portefeuille initial.
+- `PortfolioSummary` compact (cash + devise) ajouté dans `SessionPanel` pour les sessions actives et clôturées.
+- 279 tests passent (sans régression), TypeScript propre sur tous les packages.
 
 ### File List
 
 - _bmad-output/implementation-artifacts/2-1-initialiser-le-portefeuille-simule.md
+- packages/shared/src/schemas/portfolio.ts
+- packages/shared/src/index.ts
+- packages/domain/src/portfolio/types.ts
+- packages/domain/src/portfolio/errors.ts
+- packages/domain/src/portfolio/mappers.ts
+- packages/domain/src/portfolio/initializePortfolio.ts
+- packages/domain/src/portfolio/getSessionPortfolio.ts
+- packages/domain/src/portfolio/__tests__/fakePortfolioRepo.ts
+- packages/domain/src/portfolio/__tests__/initializePortfolio.test.ts
+- packages/domain/src/portfolio/__tests__/getSessionPortfolio.test.ts
+- packages/domain/src/index.ts
+- packages/shared/src/schemas/__tests__/portfolio.test.ts
+- packages/db/src/schema/portfolio.ts
+- packages/db/src/schema/index.ts
+- packages/db/src/client.ts
+- packages/db/src/repository/portfolioRepository.ts
+- packages/db/src/repository/__tests__/portfolioRepository.test.ts
+- packages/db/src/index.ts
+- apps/review/src/server/portfolioHandlers.ts
+- apps/review/src/server/sessionHandlers.ts
+- apps/review/src/app/api/sessions/[id]/portfolio/route.ts
+- apps/review/src/app/api/sessions/route.ts
+- apps/review/src/components/SessionPanel.tsx
+- apps/review/__tests__/portfolioHandlers.test.ts
+- apps/review/__tests__/sessionHandlers.test.ts
 
 ## Open Questions
 

@@ -10,8 +10,23 @@ import {
   createSession,
   systemSessionDeps,
   type DecisionRepository,
+  type PortfolioRepository,
   type SessionAssetRepository,
 } from "@training-trade/domain";
+
+const noopPortfolioRepo: PortfolioRepository = {
+  findBootstrap: () => null,
+  transaction: (fn) => fn({
+    findSession: () => null,
+    findBootstrap: () => null,
+    insertBootstrap: () => {},
+    findLatestSnapshot: () => null,
+    findPositionsBySnapshot: () => [],
+    findSnapshotByDecision: () => null,
+    appendSnapshot: () => {},
+    deleteDecisionSnapshots: () => {},
+  }),
+};
 import { handleAddSessionAsset, handleListSessionAssets } from "../src/server/assetHandlers";
 import { handleCaptureDecision } from "../src/server/decisionHandlers";
 
@@ -67,6 +82,7 @@ describe("auto-link flow: symbol detected → asset linked → decision captured
     // Step 2 — popup captures a decision using the linked asset
     const captureRes = await handleCaptureDecision(
       decisionRepo,
+      noopPortfolioRepo,
       sessionId,
       postDecision({
         assetId,
@@ -129,6 +145,7 @@ describe("auto-link flow: symbol detected → asset linked → decision captured
     // Decision capture succeeds
     const captureRes = await handleCaptureDecision(
       decisionRepo,
+      noopPortfolioRepo,
       sessionId,
       postDecision({ assetId, side: "sell", quantity: "1", referencePrice: "1.09" }),
     );

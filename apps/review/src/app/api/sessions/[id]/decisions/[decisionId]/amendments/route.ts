@@ -1,4 +1,7 @@
-import { getDefaultDecisionAmendmentRepository } from "@training-trade/db";
+import {
+  getDefaultDecisionAmendmentRepository,
+  getDefaultPortfolioRepository,
+} from "@training-trade/db";
 import { handleAmendDecision } from "@/server/decisionHandlers";
 
 // SQLite (better-sqlite3) requires the Node.js runtime.
@@ -12,6 +15,7 @@ export async function POST(
   const { id, decisionId } = await ctx.params;
   return handleAmendDecision(
     getDefaultDecisionAmendmentRepository(),
+    getDefaultPortfolioRepository(),
     id,
     decisionId,
     request,

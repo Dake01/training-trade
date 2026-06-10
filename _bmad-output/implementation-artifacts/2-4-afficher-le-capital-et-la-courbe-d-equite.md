@@ -2,7 +2,7 @@
 story_id: "2.4"
 story_key: "2-4-afficher-le-capital-et-la-courbe-d-equite"
 epic: "2"
-status: ready-for-dev
+status: review
 baseline_commit: "317448c"
 created: "2026-06-10T13:44:25+02:00"
 source_epics: "_bmad-output/planning-artifacts/epics.md"
@@ -12,7 +12,7 @@ source_prd: "_bmad-output/planning-artifacts/prds/prd-training-trade-2026-06-08/
 
 # Story 2.4: Afficher le capital et la courbe d'équité
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -54,38 +54,38 @@ so that je comprenne rapidement si ma session progresse ou se dégrade.
 
 ## Tasks / Subtasks
 
-- [ ] Définir les contrats partagés de la vue de performance (AC: 1, 2, 3, 4)
-  - [ ] Étendre `packages/shared/src/schemas/portfolio.ts` avec les DTO de performance, d'équity point et de série temporelle.
-  - [ ] Exporter les nouveaux contrats depuis `packages/shared/src/index.ts`.
-  - [ ] Réutiliser les constantes V1 de la story 2.1 et les snapshots/historiques des stories 2.2 et 2.3 sans redéfinir les mêmes champs.
-  - [ ] Représenter la série temporelle avec des montants exacts, des timestamps ISO et un ordre stable.
-  - [ ] Garder le contrat explicite mais minimal: capital courant, devise, points d'équité, valeur totale, drawdown éventuel de la courbe si utile à l'affichage, et métadonnées de session.
+- [x] Définir les contrats partagés de la vue de performance (AC: 1, 2, 3, 4)
+  - [x] Étendre `packages/shared/src/schemas/portfolio.ts` avec les DTO de performance, d'équity point et de série temporelle.
+  - [x] Exporter les nouveaux contrats depuis `packages/shared/src/index.ts`.
+  - [x] Réutiliser les constantes V1 de la story 2.1 et les snapshots/historiques des stories 2.2 et 2.3 sans redéfinir les mêmes champs.
+  - [x] Représenter la série temporelle avec des montants exacts, des timestamps ISO et un ordre stable.
+  - [x] Garder le contrat explicite mais minimal: capital courant, devise, points d'équité, valeur totale, drawdown éventuel de la courbe si utile à l'affichage, et métadonnées de session.
 
-- [ ] Implémenter le calcul de la courbe dans `packages/domain` (AC: 1, 2, 3, 4)
-  - [ ] Créer ou compléter `packages/domain/src/portfolio/` avec des helpers de projection de performance à partir des snapshots portefeuille.
-  - [ ] Faire porter la règle métier au domaine, pas au handler ni au composant React.
-  - [ ] Construire la série temporelle à partir de l'historique persistant de la session, pas à partir d'un recalcul local du front-end.
-  - [ ] Garantir un ordre stable et déterministe des points de courbe.
-  - [ ] Préserver la séparation entre état courant, historique de snapshots et visualisation de performance.
+- [x] Implémenter le calcul de la courbe dans `packages/domain` (AC: 1, 2, 3, 4)
+  - [x] Créer ou compléter `packages/domain/src/portfolio/` avec des helpers de projection de performance à partir des snapshots portefeuille.
+  - [x] Faire porter la règle métier au domaine, pas au handler ni au composant React.
+  - [x] Construire la série temporelle à partir de l'historique persistant de la session, pas à partir d'un recalcul local du front-end.
+  - [x] Garantir un ordre stable et déterministe des points de courbe.
+  - [x] Préserver la séparation entre état courant, historique de snapshots et visualisation de performance.
 
-- [ ] Exposer la vue de performance via l'API review (AC: 1, 2, 3, 4)
-  - [ ] Ajouter le route handler Next.js correspondant, par exemple `apps/review/src/app/api/sessions/[id]/portfolio/performance/route.ts`.
-  - [ ] Garder les handlers minces et testables; le calcul doit rester dans `packages/domain`.
-  - [ ] Réutiliser les données de portefeuille et d'historique déjà persistées pour produire la courbe.
-  - [ ] Exposer une réponse adaptée à la visualisation plutôt qu'un simple dump brut de snapshots.
-  - [ ] Ne pas mélanger ici les statistiques détaillées de la story 2.5.
+- [x] Exposer la vue de performance via l'API review (AC: 1, 2, 3, 4)
+  - [x] Ajouter le route handler Next.js correspondant, par exemple `apps/review/src/app/api/sessions/[id]/portfolio/performance/route.ts`.
+  - [x] Garder les handlers minces et testables; le calcul doit rester dans `packages/domain`.
+  - [x] Réutiliser les données de portefeuille et d'historique déjà persistées pour produire la courbe.
+  - [x] Exposer une réponse adaptée à la visualisation plutôt qu'un simple dump brut de snapshots.
+  - [x] Ne pas mélanger ici les statistiques détaillées de la story 2.5.
 
-- [ ] Afficher la performance dans l'interface de revue (AC: 1, 2, 3)
-  - [ ] Étendre `apps/review/src/components/SessionPanel.tsx` ou la vue de session équivalente pour afficher le capital courant et une courbe d'équité lisible.
-  - [ ] Préserver une lecture rapide: axe temporel simple, dernier point visible, variation du capital compréhensible en un coup d'œil.
-  - [ ] Garder l'UX desktop-first et éviter une visualisation surchargée.
-  - [ ] Ne pas ajouter ici les indicateurs de performance avancés ou les agrégats détaillés de la story 2.5.
+- [x] Afficher la performance dans l'interface de revue (AC: 1, 2, 3)
+  - [x] Étendre `apps/review/src/components/SessionPanel.tsx` ou la vue de session équivalente pour afficher le capital courant et une courbe d'équité lisible.
+  - [x] Préserver une lecture rapide: axe temporel simple, dernier point visible, variation du capital compréhensible en un coup d'œil.
+  - [x] Garder l'UX desktop-first et éviter une visualisation surchargée.
+  - [x] Ne pas ajouter ici les indicateurs de performance avancés ou les agrégats détaillés de la story 2.5.
 
-- [ ] Couvrir la story par des tests ciblés (AC: 1, 2, 3, 4)
-  - [ ] Tests shared: validation des DTO de performance et de courbe.
-  - [ ] Tests domaine: projection d'une courbe stable depuis snapshots/historique, recalcul déterministe, compatibilité avec corrections et annulations.
-  - [ ] Tests API/UI: la vue de performance renvoie et affiche le capital + la courbe attendus, et un refresh après nouvelle décision met à jour la série sans duplication.
-  - [ ] Ajouter au minimum un test vertical: session ouverte -> portefeuille initialisé -> plusieurs décisions -> consultation de la vue de performance -> courbe cohérente avec les snapshots.
+- [x] Couvrir la story par des tests ciblés (AC: 1, 2, 3, 4)
+  - [x] Tests shared: validation des DTO de performance et de courbe.
+  - [x] Tests domaine: projection d'une courbe stable depuis snapshots/historique, recalcul déterministe, compatibilité avec corrections et annulations.
+  - [x] Tests API/UI: la vue de performance renvoie et affiche le capital + la courbe attendus, et un refresh après nouvelle décision met à jour la série sans duplication.
+  - [x] Ajouter au minimum un test vertical: session ouverte -> portefeuille initialisé -> plusieurs décisions -> consultation de la vue de performance -> courbe cohérente avec les snapshots.
 
 ## Dev Notes
 
@@ -250,7 +250,25 @@ claude-sonnet-4-6
 - Le scope reste volontairement centré sur la visualisation déterministe et lisible, sans entrer dans les statistiques détaillées de la story 2.5.
 - La courbe doit s'appuyer sur les données persistées de portefeuille et rester stable au rechargement.
 - Le repo réel continue d'utiliser `apps/review/src/app/api/...` et `apps/review/src/server/...`; la story documente ce chemin réel.
+- Ajout des DTO `portfolioEquityPoint`, `portfolioPerformance` et `sessionPortfolioPerformanceResponse`.
+- Ajout de `getSessionPortfolioPerformance` côté domaine, projeté depuis l'historique persistant de snapshots.
+- Ajout du handler et de la route `GET /api/sessions/[id]/portfolio/performance`.
+- Ajout de l'affichage UI compact: capital courant et courbe SVG d'équité rafraîchie au chargement, après capture et après amendement.
+- Validations exécutées: `pnpm test` (318 tests), `pnpm typecheck`, `pnpm lint` — toutes vertes.
+
+### Change Log
+
+- 2026-06-10: Implémentation story 2.4 — contrats performance, projection domaine, endpoint API, visualisation UI et tests ciblés.
 
 ### File List
 
 - _bmad-output/implementation-artifacts/2-4-afficher-le-capital-et-la-courbe-d-equite.md
+- apps/review/__tests__/portfolioHandlers.test.ts
+- apps/review/src/app/api/sessions/[id]/portfolio/performance/route.ts
+- apps/review/src/components/SessionPanel.tsx
+- apps/review/src/server/portfolioHandlers.ts
+- packages/domain/src/index.ts
+- packages/domain/src/portfolio/getSessionPortfolioPerformance.ts
+- packages/domain/src/portfolio/__tests__/getSessionPortfolioPerformance.test.ts
+- packages/shared/src/schemas/portfolio.ts
+- packages/shared/src/schemas/__tests__/portfolio.test.ts

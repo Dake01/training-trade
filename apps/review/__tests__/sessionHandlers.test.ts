@@ -1,10 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   createDbClient,
+  createSqlitePortfolioRepository,
   createSqliteSessionRepository,
   type DbClient,
 } from "@training-trade/db";
-import type { SessionRepository } from "@training-trade/domain";
+import type { PortfolioRepository, SessionRepository } from "@training-trade/domain";
 import {
   handleCloseSession,
   handleCreateSession,
@@ -15,10 +16,12 @@ import {
 describe("session API handlers (integration over SQLite)", () => {
   let client: DbClient;
   let repo: SessionRepository;
+  let portfolioRepo: PortfolioRepository;
 
   beforeEach(() => {
     client = createDbClient(":memory:");
     repo = createSqliteSessionRepository(client);
+    portfolioRepo = createSqlitePortfolioRepository(client);
   });
 
   afterEach(() => {
@@ -26,7 +29,7 @@ describe("session API handlers (integration over SQLite)", () => {
   });
 
   it("POST /api/sessions creates and returns an open session", async () => {
-    const response = handleCreateSession(repo);
+    const response = handleCreateSession(repo, portfolioRepo);
     expect(response.status).toBe(201);
 
     const body = await response.json();
@@ -37,8 +40,21 @@ describe("session API handlers (integration over SQLite)", () => {
     expect(typeof body.data.session.id).toBe("string");
   });
 
+  it("POST /api/sessions also bootstraps the portfolio", async () => {
+    const response = handleCreateSession(repo, portfolioRepo);
+    const body = await response.json();
+    const sessionId = body.data.session.id as string;
+
+    const snapshot = client.sqlite
+      .prepare(
+        "SELECT * FROM portfolio_snapshots WHERE session_id = ? AND kind = 'bootstrap'",
+      )
+      .get(sessionId);
+    expect(snapshot).not.toBeNull();
+  });
+
   it("GET /api/sessions/active returns the created session", async () => {
-    const created = await handleCreateSession(repo).json();
+    const created = await handleCreateSession(repo, portfolioRepo).json();
 
     const response = handleGetActiveSession(repo);
     expect(response.status).toBe(200);
@@ -59,9 +75,9 @@ describe("session API handlers (integration over SQLite)", () => {
   });
 
   it("POST /api/sessions returns a structured 409 conflict when one is active", async () => {
-    handleCreateSession(repo);
+    handleCreateSession(repo, portfolioRepo);
 
-    const response = handleCreateSession(repo);
+    const response = handleCreateSession(repo, portfolioRepo);
     expect(response.status).toBe(409);
 
     const body = await response.json();
@@ -97,7 +113,7 @@ describe("session API handlers (integration over SQLite)", () => {
   });
 
   it("POST /api/sessions/[id]/close closes the active session", async () => {
-    const created = await handleCreateSession(repo).json();
+    const created = await handleCreateSession(repo, portfolioRepo).json();
     const id = created.data.session.id as string;
 
     const response = handleCloseSession(repo, id);
@@ -116,7 +132,7 @@ describe("session API handlers (integration over SQLite)", () => {
   });
 
   it("POST /api/sessions/[id]/resume returns an open session (idempotent on open)", async () => {
-    const created = await handleCreateSession(repo).json();
+    const created = await handleCreateSession(repo, portfolioRepo).json();
     const id = created.data.session.id as string;
 
     const response = handleResumeSession(repo, id);
@@ -151,7 +167,7 @@ describe("session API handlers (integration over SQLite)", () => {
   });
 
   it("returns a structured 409 when closing an already-closed session", async () => {
-    const created = await handleCreateSession(repo).json();
+    const created = await handleCreateSession(repo, portfolioRepo).json();
     const id = created.data.session.id as string;
     handleCloseSession(repo, id);
 
@@ -168,7 +184,7 @@ describe("session API handlers (integration over SQLite)", () => {
   });
 
   it("returns a structured 409 when resuming a closed session", async () => {
-    const created = await handleCreateSession(repo).json();
+    const created = await handleCreateSession(repo, portfolioRepo).json();
     const id = created.data.session.id as string;
     handleCloseSession(repo, id);
 
@@ -218,8 +234,17 @@ describe("session API handlers (integration over SQLite)", () => {
         throw sqliteConflict;
       },
     };
+    const noopPortfolioRepo: PortfolioRepository = {
+      findBootstrap: () => null,
+      transaction: (fn) =>
+        fn({
+          findSession: () => null,
+          findBootstrap: () => null,
+          insertBootstrap: () => {},
+        }),
+    };
 
-    const response = handleCreateSession(conflictingRepo);
+    const response = handleCreateSession(conflictingRepo, noopPortfolioRepo);
     expect(response.status).toBe(409);
 
     const body = await response.json();

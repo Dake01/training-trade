@@ -14,11 +14,26 @@ import {
   createSession,
   systemSessionDeps,
   type DecisionAmendmentRepository,
+  type PortfolioRepository,
 } from "@training-trade/domain";
 import {
   handleAmendDecision,
   handleListSessionDecisions,
 } from "../src/server/decisionHandlers";
+
+const noopPortfolioRepo: PortfolioRepository = {
+  findBootstrap: () => null,
+  transaction: (fn) => fn({
+    findSession: () => null,
+    findBootstrap: () => null,
+    insertBootstrap: () => {},
+    findLatestSnapshot: () => null,
+    findPositionsBySnapshot: () => [],
+    findSnapshotByDecision: () => null,
+    appendSnapshot: () => {},
+    deleteDecisionSnapshots: () => {},
+  }),
+};
 
 function postRequest(body: unknown): Request {
   return new Request("http://localhost/api/sessions/x/decisions/y/amendments", {
@@ -72,6 +87,7 @@ describe("decision amendment API handlers (integration over SQLite)", () => {
     const { sessionId, decisionId } = setup();
     const res = await handleAmendDecision(
       repo,
+      noopPortfolioRepo,
       sessionId,
       decisionId,
       postRequest({ kind: "comment", comment: "Contexte de saisie" }),
@@ -90,6 +106,7 @@ describe("decision amendment API handlers (integration over SQLite)", () => {
     const { sessionId, decisionId, otherAssetId } = setup();
     const res = await handleAmendDecision(
       repo,
+      noopPortfolioRepo,
       sessionId,
       decisionId,
       postRequest({
@@ -119,6 +136,7 @@ describe("decision amendment API handlers (integration over SQLite)", () => {
     const { sessionId, decisionId } = setup();
     const res = await handleAmendDecision(
       repo,
+      noopPortfolioRepo,
       sessionId,
       decisionId,
       postRequest({ kind: "cancellation", reason: "Saisie accidentelle" }),
@@ -131,6 +149,7 @@ describe("decision amendment API handlers (integration over SQLite)", () => {
     const { sessionId, decisionId } = setup();
     const res = await handleAmendDecision(
       repo,
+      noopPortfolioRepo,
       sessionId,
       decisionId,
       postRequest({ kind: "comment", comment: "" }),
@@ -151,6 +170,7 @@ describe("decision amendment API handlers (integration over SQLite)", () => {
     const { sessionId } = setup();
     const res = await handleAmendDecision(
       repo,
+      noopPortfolioRepo,
       sessionId,
       "missing",
       postRequest({ kind: "comment", comment: "x" }),
@@ -164,6 +184,7 @@ describe("decision amendment API handlers (integration over SQLite)", () => {
     closeSession(createSqliteSessionRepository(client), systemSessionDeps, sessionId);
     const res = await handleAmendDecision(
       repo,
+      noopPortfolioRepo,
       sessionId,
       decisionId,
       postRequest({ kind: "comment", comment: "x" }),
@@ -176,6 +197,7 @@ describe("decision amendment API handlers (integration over SQLite)", () => {
     const { sessionId, decisionId } = setup();
     const res = await handleAmendDecision(
       repo,
+      noopPortfolioRepo,
       sessionId,
       decisionId,
       postRequest({
@@ -196,12 +218,14 @@ describe("decision amendment API handlers (integration over SQLite)", () => {
     const { sessionId, decisionId } = setup();
     await handleAmendDecision(
       repo,
+      noopPortfolioRepo,
       sessionId,
       decisionId,
       postRequest({ kind: "cancellation" }),
     );
     const res = await handleAmendDecision(
       repo,
+      noopPortfolioRepo,
       sessionId,
       decisionId,
       postRequest({ kind: "comment", comment: "trop tard" }),
@@ -229,12 +253,14 @@ describe("decision amendment API handlers (integration over SQLite)", () => {
 
     await handleAmendDecision(
       repo,
+      noopPortfolioRepo,
       sessionId,
       decisionId,
       postRequest({ kind: "comment", comment: "Note" }),
     );
     await handleAmendDecision(
       repo,
+      noopPortfolioRepo,
       sessionId,
       decisionId,
       postRequest({
@@ -273,6 +299,7 @@ describe("decision amendment API handlers (integration over SQLite)", () => {
     closeSession(createSqliteSessionRepository(client), systemSessionDeps, sessionId);
     const refused = await handleAmendDecision(
       repo,
+      noopPortfolioRepo,
       sessionId,
       decisionId,
       postRequest({ kind: "comment", comment: "apres" }),

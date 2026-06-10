@@ -1,6 +1,7 @@
 import {
   getDefaultDecisionAmendmentRepository,
   getDefaultDecisionRepository,
+  getDefaultPortfolioRepository,
 } from "@training-trade/db";
 import {
   handleCaptureDecision,
@@ -16,7 +17,12 @@ export async function POST(
   ctx: { params: Promise<{ id: string }> },
 ): Promise<Response> {
   const { id } = await ctx.params;
-  return handleCaptureDecision(getDefaultDecisionRepository(), id, request);
+  return handleCaptureDecision(
+    getDefaultDecisionRepository(),
+    getDefaultPortfolioRepository(),
+    id,
+    request,
+  );
 }
 
 export async function GET(

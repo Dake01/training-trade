@@ -29,6 +29,28 @@ export function resolveDatabasePath(
   return path === ":memory:" || isAbsolute(path) ? path : resolve(REPO_ROOT, path);
 }
 
+function hasColumn(
+  sqlite: Database.Database,
+  tableName: string,
+  columnName: string,
+): boolean {
+  return sqlite
+    .prepare(`PRAGMA table_info(${tableName})`)
+    .all()
+    .some((row) => (row as { name: string }).name === columnName);
+}
+
+function addColumnIfMissing(
+  sqlite: Database.Database,
+  tableName: string,
+  columnName: string,
+  definition: string,
+): void {
+  if (!hasColumn(sqlite, tableName, columnName)) {
+    sqlite.exec(`ALTER TABLE ${tableName} ADD COLUMN ${definition}`);
+  }
+}
+
 /** Create the schema if it does not exist yet (V1 lightweight migration). */
 export function ensureSchema(sqlite: Database.Database): void {
   sqlite.exec(`
@@ -90,6 +112,49 @@ export function ensureSchema(sqlite: Database.Database): void {
       ON decision_amendments (decision_id, created_at, id);
     CREATE INDEX IF NOT EXISTS idx_amendments_session_order
       ON decision_amendments (session_id, created_at, id);
+
+    CREATE TABLE IF NOT EXISTS portfolio_snapshots (
+      id TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL REFERENCES sessions (id),
+      kind TEXT NOT NULL,
+      cash TEXT NOT NULL,
+      reference_currency TEXT NOT NULL,
+      total_value TEXT NOT NULL,
+      snapshot_index INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      decision_id TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS portfolio_positions (
+      id TEXT PRIMARY KEY,
+      snapshot_id TEXT NOT NULL REFERENCES portfolio_snapshots (id),
+      asset_id TEXT NOT NULL REFERENCES assets (id),
+      quantity TEXT NOT NULL,
+      average_price TEXT NOT NULL,
+      last_price TEXT NOT NULL,
+      market_value TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_portfolio_positions_snapshot
+      ON portfolio_positions (snapshot_id);
+    CREATE INDEX IF NOT EXISTS idx_portfolio_positions_asset
+      ON portfolio_positions (asset_id);
+  `);
+
+  // Lightweight migration for local DBs created before portfolio history.
+  // CREATE TABLE IF NOT EXISTS does not add columns to existing tables, so add
+  // the columns required by story 2.2/2.3 before creating dependent indexes.
+  addColumnIfMissing(sqlite, "portfolio_snapshots", "kind", "kind TEXT NOT NULL DEFAULT 'bootstrap'");
+  addColumnIfMissing(sqlite, "portfolio_snapshots", "snapshot_index", "snapshot_index INTEGER NOT NULL DEFAULT 0");
+  addColumnIfMissing(sqlite, "portfolio_snapshots", "decision_id", "decision_id TEXT");
+
+  sqlite.exec(`
+    CREATE UNIQUE INDEX IF NOT EXISTS uniq_portfolio_bootstrap
+      ON portfolio_snapshots (session_id) WHERE kind = 'bootstrap';
+    CREATE UNIQUE INDEX IF NOT EXISTS uniq_portfolio_snapshot_decision
+      ON portfolio_snapshots (session_id, decision_id) WHERE decision_id IS NOT NULL;
+    CREATE INDEX IF NOT EXISTS idx_portfolio_snapshots_session_order
+      ON portfolio_snapshots (session_id, snapshot_index);
   `);
 }
 

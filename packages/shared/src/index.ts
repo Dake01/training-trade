@@ -6,3 +6,4 @@ export * from "./schemas/sessionAsset";
 export * from "./schemas/decision";
 export * from "./schemas/decisionAmendment";
 export * from "./schemas/tvContext";
+export * from "./schemas/portfolio";

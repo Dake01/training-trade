@@ -14,11 +14,27 @@ import {
   systemSessionDeps,
   type DecisionAmendmentRepository,
   type DecisionRepository,
+  type PortfolioRepository,
 } from "@training-trade/domain";
 import {
+  handleAmendDecision,
   handleCaptureDecision,
   handleListSessionDecisions,
 } from "../src/server/decisionHandlers";
+
+const noopPortfolioRepo: PortfolioRepository = {
+  findBootstrap: () => null,
+  transaction: (fn) => fn({
+    findSession: () => null,
+    findBootstrap: () => null,
+    insertBootstrap: () => {},
+    findLatestSnapshot: () => null,
+    findPositionsBySnapshot: () => [],
+    findSnapshotByDecision: () => null,
+    appendSnapshot: () => {},
+    deleteDecisionSnapshots: () => {},
+  }),
+};
 
 function postRequest(body: unknown): Request {
   return new Request("http://localhost/api/sessions/x/decisions", {
@@ -75,6 +91,7 @@ describe("decision API handlers (integration over SQLite)", () => {
 
     const response = await handleCaptureDecision(
       repo,
+      noopPortfolioRepo,
       sessionId,
       postRequest(capturePayload(assetId, {
         logicalTimestamp: "2026-06-09T09:00:00.000Z",
@@ -103,8 +120,8 @@ describe("decision API handlers (integration over SQLite)", () => {
   it("POST is append-only: two identical submissions create two events", async () => {
     const { sessionId, assetId } = openSessionWithAsset();
 
-    await handleCaptureDecision(repo, sessionId, postRequest(capturePayload(assetId)));
-    await handleCaptureDecision(repo, sessionId, postRequest(capturePayload(assetId)));
+    await handleCaptureDecision(repo, noopPortfolioRepo, sessionId, postRequest(capturePayload(assetId)));
+    await handleCaptureDecision(repo, noopPortfolioRepo, sessionId, postRequest(capturePayload(assetId)));
 
     const list = await handleListSessionDecisions(listRepo, sessionId).json();
     expect(list.data.decisions).toHaveLength(2);
@@ -123,6 +140,7 @@ describe("decision API handlers (integration over SQLite)", () => {
 
     const response = await handleCaptureDecision(
       repo,
+      noopPortfolioRepo,
       sessionId,
       postRequest(capturePayload(assetId, { quantity: "0" })),
     );
@@ -140,7 +158,7 @@ describe("decision API handlers (integration over SQLite)", () => {
       body: "not-json",
     });
 
-    const response = await handleCaptureDecision(repo, sessionId, bad);
+    const response = await handleCaptureDecision(repo, noopPortfolioRepo, sessionId, bad);
     expect(response.status).toBe(400);
     const body = await response.json();
     expect(body.error.code).toBe("VALIDATION_ERROR");
@@ -149,6 +167,7 @@ describe("decision API handlers (integration over SQLite)", () => {
   it("POST returns a structured 404 for an unknown session", async () => {
     const response = await handleCaptureDecision(
       repo,
+      noopPortfolioRepo,
       "missing",
       postRequest(capturePayload("any-asset")),
     );
@@ -168,6 +187,7 @@ describe("decision API handlers (integration over SQLite)", () => {
 
     const response = await handleCaptureDecision(
       repo,
+      noopPortfolioRepo,
       sessionId,
       postRequest(capturePayload(assetId)),
     );
@@ -186,6 +206,7 @@ describe("decision API handlers (integration over SQLite)", () => {
 
     const response = await handleCaptureDecision(
       repo,
+      noopPortfolioRepo,
       sessionId,
       postRequest(capturePayload("foreign-asset")),
     );
@@ -226,6 +247,7 @@ describe("decision API handlers (integration over SQLite)", () => {
       (
         await handleCaptureDecision(
           repo,
+          noopPortfolioRepo,
           sessionId,
           postRequest(capturePayload(assetId, {
             side: "buy",
@@ -238,6 +260,7 @@ describe("decision API handlers (integration over SQLite)", () => {
       (
         await handleCaptureDecision(
           repo,
+          noopPortfolioRepo,
           sessionId,
           postRequest(capturePayload(assetId, {
             side: "sell",
@@ -260,6 +283,7 @@ describe("decision API handlers (integration over SQLite)", () => {
     // Capturing on a closed session is refused (409), no new event persisted.
     const refused = await handleCaptureDecision(
       repo,
+      noopPortfolioRepo,
       sessionId,
       postRequest(capturePayload(assetId)),
     );

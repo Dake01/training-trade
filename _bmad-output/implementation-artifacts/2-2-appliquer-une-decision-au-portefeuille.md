@@ -2,8 +2,8 @@
 story_id: "2.2"
 story_key: "2-2-appliquer-une-decision-au-portefeuille"
 epic: "2"
-status: ready-for-dev
-baseline_commit: "317448c"
+status: review
+baseline_commit: "8e5bc4a"
 created: "2026-06-10T13:39:16+02:00"
 source_epics: "_bmad-output/planning-artifacts/epics.md"
 source_architecture: "_bmad-output/planning-artifacts/architecture.md"
@@ -12,7 +12,7 @@ source_prd: "_bmad-output/planning-artifacts/prds/prd-training-trade-2026-06-08/
 
 # Story 2.2: Appliquer une décision au portefeuille
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -56,48 +56,48 @@ so that l’impact de mes choix soit immédiatement reflété par la simulation.
 
 ## Tasks / Subtasks
 
-- [ ] Définir les contrats partagés du portefeuille applicatif (AC: 1, 2, 3, 4)
-  - [ ] Étendre `packages/shared/src/schemas/portfolio.ts` avec un DTO de portefeuille courant, une position de portefeuille et les éventuels payloads de lecture nécessaires.
-  - [ ] Exporter les schémas depuis `packages/shared/src/index.ts`.
-  - [ ] Réutiliser les constantes V1 de la story 2.1 (capital initial et devise de référence) sans les redéfinir.
-  - [ ] Représenter cash, quantités, prix moyens et valeurs comme chaînes décimales exactes, comme pour les décisions.
-  - [ ] Garder le contrat explicite mais minimal: cash, positions, valeur totale, devise, timestamps et métadonnées utiles à la relecture.
+- [x] Définir les contrats partagés du portefeuille applicatif (AC: 1, 2, 3, 4)
+  - [x] Étendre `packages/shared/src/schemas/portfolio.ts` avec un DTO de portefeuille courant, une position de portefeuille et les éventuels payloads de lecture nécessaires.
+  - [x] Exporter les schémas depuis `packages/shared/src/index.ts`.
+  - [x] Réutiliser les constantes V1 de la story 2.1 (capital initial et devise de référence) sans les redéfinir.
+  - [x] Représenter cash, quantités, prix moyens et valeurs comme chaînes décimales exactes, comme pour les décisions.
+  - [x] Garder le contrat explicite mais minimal: cash, positions, valeur totale, devise, timestamps et métadonnées utiles à la relecture.
 
-- [ ] Implémenter le moteur métier de mise à jour du portefeuille dans `packages/domain` (AC: 1, 3, 4)
-  - [ ] Créer ou compléter `packages/domain/src/portfolio/` avec `types.ts`, `deps.ts`, `mappers.ts`, `applyDecisionToPortfolio.ts`, `getSessionPortfolio.ts`, `rebuildSessionPortfolio.ts` et les tests associés.
-  - [ ] Faire porter les règles métier au domaine, pas au handler ni au composant React.
-  - [ ] Appliquer la décision sur la base de l'état portefeuille courant de la session, avec une position par actif et un calcul de coût moyen simple.
-  - [ ] Mettre à jour le cash, la quantité détenue, le prix moyen et la valeur totale de façon cohérente.
-  - [ ] Préserver le comportement multi-actifs.
-  - [ ] Préparer l'engine à consommer la décision effective ordonnée issue de la story 1.5; ne pas ignorer les corrections ou annulations.
-  - [ ] Rendre l'opération idempotente en utilisant un identifiant de décision / snapshot ou une clé métier équivalente pour éviter le double comptage.
+- [x] Implémenter le moteur métier de mise à jour du portefeuille dans `packages/domain` (AC: 1, 3, 4)
+  - [x] Créer ou compléter `packages/domain/src/portfolio/` avec `types.ts`, `deps.ts`, `mappers.ts`, `applyDecisionToPortfolio.ts`, `getSessionPortfolio.ts`, `rebuildSessionPortfolio.ts` et les tests associés.
+  - [x] Faire porter les règles métier au domaine, pas au handler ni au composant React.
+  - [x] Appliquer la décision sur la base de l'état portefeuille courant de la session, avec une position par actif et un calcul de coût moyen simple.
+  - [x] Mettre à jour le cash, la quantité détenue, le prix moyen et la valeur totale de façon cohérente.
+  - [x] Préserver le comportement multi-actifs.
+  - [x] Préparer l'engine à consommer la décision effective ordonnée issue de la story 1.5; ne pas ignorer les corrections ou annulations.
+  - [x] Rendre l'opération idempotente en utilisant un identifiant de décision / snapshot ou une clé métier équivalente pour éviter le double comptage.
 
-- [ ] Persister les snapshots et positions de portefeuille dans SQLite/Drizzle (AC: 1, 2, 3, 4)
-  - [ ] Ajouter le schéma DB correspondant dans `packages/db/src/schema/` avec `snake_case` en base et mapping `camelCase` côté TypeScript.
-  - [ ] Prévoir une structure adaptée à l'historique de la story 2.3, avec un snapshot courant et des lignes de positions rattachées à ce snapshot.
-  - [ ] Ajouter le repository SQLite dédié dans `packages/db/src/repository/`, avec lecture de l'état courant, append d'un nouveau snapshot et protection contre les doublons.
-  - [ ] Mettre à jour `packages/db/src/client.ts` pour `ensureSchema` sans casser les bases existantes.
-  - [ ] Garder les montants/cash en TEXT décimal exact et réutiliser le même style de mapping que les décisions.
-  - [ ] Préserver `foreign_keys = ON` et le pattern `better-sqlite3` synchrone.
+- [x] Persister les snapshots et positions de portefeuille dans SQLite/Drizzle (AC: 1, 2, 3, 4)
+  - [x] Ajouter le schéma DB correspondant dans `packages/db/src/schema/` avec `snake_case` en base et mapping `camelCase` côté TypeScript.
+  - [x] Prévoir une structure adaptée à l'historique de la story 2.3, avec un snapshot courant et des lignes de positions rattachées à ce snapshot.
+  - [x] Ajouter le repository SQLite dédié dans `packages/db/src/repository/`, avec lecture de l'état courant, append d'un nouveau snapshot et protection contre les doublons.
+  - [x] Mettre à jour `packages/db/src/client.ts` pour `ensureSchema` sans casser les bases existantes.
+  - [x] Garder les montants/cash en TEXT décimal exact et réutiliser le même style de mapping que les décisions.
+  - [x] Préserver `foreign_keys = ON` et le pattern `better-sqlite3` synchrone.
 
-- [ ] Brancher l'application de décision au flux existant de capture (AC: 1, 2, 3, 4)
-  - [ ] Brancher le moteur portefeuille sur le flux de capture de décision existant afin qu'un buy/sell appliqué mette à jour le portefeuille de la session.
-  - [ ] Garder `apps/review/src/server/decisionHandlers.ts` et/ou le handler API équivalent minces; la logique de calcul doit rester dans `packages/domain`.
-  - [ ] S'assurer qu'un succès de capture ne laisse pas le portefeuille et la décision dans deux états incohérents.
-  - [ ] Réutiliser `GET /api/sessions/[id]/portfolio` pour relire l'état courant après chaque application.
-  - [ ] Ne pas introduire de nouvelle UI lourde dans cette story: le flux nominal reste la capture de décision, pas l'administration de portefeuille.
+- [x] Brancher l'application de décision au flux existant de capture (AC: 1, 2, 3, 4)
+  - [x] Brancher le moteur portefeuille sur le flux de capture de décision existant afin qu'un buy/sell appliqué mette à jour le portefeuille de la session.
+  - [x] Garder `apps/review/src/server/decisionHandlers.ts` et/ou le handler API équivalent minces; la logique de calcul doit rester dans `packages/domain`.
+  - [x] S'assurer qu'un succès de capture ne laisse pas le portefeuille et la décision dans deux états incohérents.
+  - [x] Réutiliser `GET /api/sessions/[id]/portfolio` pour relire l'état courant après chaque application.
+  - [x] Ne pas introduire de nouvelle UI lourde dans cette story: le flux nominal reste la capture de décision, pas l'administration de portefeuille.
 
-- [ ] Afficher l'état portefeuille courant dans l'app de revue (AC: 2)
-  - [ ] Étendre `apps/review/src/components/SessionPanel.tsx` pour afficher le cash courant, la devise, le nombre de positions ouvertes et la valeur totale courante.
-  - [ ] Garder l'affichage compact et lisible, en cohérence avec l'UX desktop-first du projet.
-  - [ ] Ne pas construire ici la courbe d'équité complète, les statistiques détaillées, ni la vue globale portefeuille dédiée: ces éléments appartiennent aux stories 2.4 et 2.5.
+- [x] Afficher l'état portefeuille courant dans l'app de revue (AC: 2)
+  - [x] Étendre `apps/review/src/components/SessionPanel.tsx` pour afficher le cash courant, la devise, le nombre de positions ouvertes et la valeur totale courante.
+  - [x] Garder l'affichage compact et lisible, en cohérence avec l'UX desktop-first du projet.
+  - [x] Ne pas construire ici la courbe d'équité complète, les statistiques détaillées, ni la vue globale portefeuille dédiée: ces éléments appartiennent aux stories 2.4 et 2.5.
 
-- [ ] Couvrir la story par des tests ciblés (AC: 1, 2, 3, 4)
-  - [ ] Tests shared: validation du DTO portefeuille courant et des valeurs décimales exactes.
-  - [ ] Tests domaine: buy augmente/décrémente correctement cash et position, sell réduit la position sans la rendre négative, multiple actifs, coût moyen simple, idempotence par décision, utilisation de l'ordre effectif des décisions amendées.
-  - [ ] Tests DB: création des tables snapshot/positions, persistance exacte des montants, lecture de l'état courant, absence de double comptage sur retry.
-  - [ ] Tests API/UI: le flux de capture de décision met à jour l'état portefeuille, `GET /api/sessions/[id]/portfolio` renvoie le dernier snapshot, et le résumé UI reflète les chiffres courants.
-  - [ ] Ajouter au minimum un test vertical: session ouverte -> portefeuille initialisé -> capture buy -> capture sell -> lecture d'un état portefeuille cohérent, sans comptage double.
+- [x] Couvrir la story par des tests ciblés (AC: 1, 2, 3, 4)
+  - [x] Tests shared: validation du DTO portefeuille courant et des valeurs décimales exactes.
+  - [x] Tests domaine: buy augmente/décrémente correctement cash et position, sell réduit la position sans la rendre négative, multiple actifs, coût moyen simple, idempotence par décision, utilisation de l'ordre effectif des décisions amendées.
+  - [x] Tests DB: création des tables snapshot/positions, persistance exacte des montants, lecture de l'état courant, absence de double comptage sur retry.
+  - [x] Tests API/UI: le flux de capture de décision met à jour l'état portefeuille, `GET /api/sessions/[id]/portfolio` renvoie le dernier snapshot, et le résumé UI reflète les chiffres courants.
+  - [x] Ajouter au minimum un test vertical: session ouverte -> portefeuille initialisé -> capture buy -> capture sell -> lecture d'un état portefeuille cohérent, sans comptage double.
 
 ## Dev Notes
 

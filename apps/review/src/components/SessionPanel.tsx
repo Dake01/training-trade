@@ -6,6 +6,10 @@ import type {
   ApiResponse,
   Decision,
   DecisionSide,
+  Portfolio,
+  PortfolioHistory,
+  PortfolioPerformance,
+  PortfolioStats,
   Session,
   SessionContext,
   TrackedAsset,
@@ -18,6 +22,10 @@ type AssetsData = { assets: TrackedAsset[] };
 type AddAssetData = { asset: TrackedAsset };
 type DecisionsData = { decisions: Decision[]; timeline?: DecisionTimelineEntry[] };
 type CaptureDecisionData = { decision: Decision };
+type PortfolioData = { portfolio: Portfolio };
+type PortfolioHistoryData = { history: PortfolioHistory };
+type PortfolioPerformanceData = { performance: PortfolioPerformance };
+type PortfolioStatsData = { stats: PortfolioStats };
 
 async function readEnvelope<T>(response: Response): Promise<ApiResponse<T>> {
   return (await response.json()) as ApiResponse<T>;
@@ -39,6 +47,10 @@ export function SessionPanel() {
   const [assets, setAssets] = useState<TrackedAsset[]>([]);
   const [decisions, setDecisions] = useState<Decision[]>([]);
   const [timeline, setTimeline] = useState<DecisionTimelineEntry[] | null>(null);
+  const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
+  const [history, setHistory] = useState<PortfolioHistory | null>(null);
+  const [performance, setPerformance] = useState<PortfolioPerformance | null>(null);
+  const [stats, setStats] = useState<PortfolioStats | null>(null);
   const displayedIdRef = useRef<string | null>(null);
   const [symbolInput, setSymbolInput] = useState("");
   const [loading, setLoading] = useState(true);
@@ -94,6 +106,66 @@ export function SessionPanel() {
     }
   }, []);
 
+  const refreshPortfolio = useCallback(async (sessionId: string) => {
+    try {
+      const res = await fetch(
+        `/api/sessions/${encodeURIComponent(sessionId)}/portfolio`,
+        { cache: "no-store" },
+      );
+      const body = await readEnvelope<PortfolioData>(res);
+      if (displayedIdRef.current !== sessionId) return;
+      if (!res.ok || body.error) return;
+      setPortfolio(body.data?.portfolio ?? null);
+    } catch {
+      // Portfolio summary is non-blocking — don't surface an error here.
+    }
+  }, []);
+
+  const refreshHistory = useCallback(async (sessionId: string) => {
+    try {
+      const res = await fetch(
+        `/api/sessions/${encodeURIComponent(sessionId)}/portfolio/history`,
+        { cache: "no-store" },
+      );
+      const body = await readEnvelope<PortfolioHistoryData>(res);
+      if (displayedIdRef.current !== sessionId) return;
+      if (!res.ok || body.error) return;
+      setHistory(body.data?.history ?? null);
+    } catch {
+      // Portfolio history is non-blocking — the current summary remains useful.
+    }
+  }, []);
+
+  const refreshPerformance = useCallback(async (sessionId: string) => {
+    try {
+      const res = await fetch(
+        `/api/sessions/${encodeURIComponent(sessionId)}/portfolio/performance`,
+        { cache: "no-store" },
+      );
+      const body = await readEnvelope<PortfolioPerformanceData>(res);
+      if (displayedIdRef.current !== sessionId) return;
+      if (!res.ok || body.error) return;
+      setPerformance(body.data?.performance ?? null);
+    } catch {
+      // Performance view is non-blocking; history remains the source of truth.
+    }
+  }, []);
+
+  const refreshStats = useCallback(async (sessionId: string) => {
+    try {
+      const res = await fetch(
+        `/api/sessions/${encodeURIComponent(sessionId)}/stats`,
+        { cache: "no-store" },
+      );
+      const body = await readEnvelope<PortfolioStatsData>(res);
+      if (displayedIdRef.current !== sessionId) return;
+      if (!res.ok || body.error) return;
+      setStats(body.data?.stats ?? null);
+    } catch {
+      // Stats are non-blocking; portfolio and performance remain visible.
+    }
+  }, []);
+
   const refreshDecisions = useCallback(async (sessionId: string) => {
     try {
       const res = await fetch(
@@ -125,12 +197,20 @@ export function SessionPanel() {
     if (displayedId) {
       void refreshAssets(displayedId);
       void refreshDecisions(displayedId);
+      void refreshPortfolio(displayedId);
+      void refreshHistory(displayedId);
+      void refreshPerformance(displayedId);
+      void refreshStats(displayedId);
     } else {
       setAssets([]);
       setDecisions([]);
       setTimeline(null);
+      setPortfolio(null);
+      setHistory(null);
+      setPerformance(null);
+      setStats(null);
     }
-  }, [displayedId, refreshAssets, refreshDecisions]);
+  }, [displayedId, refreshAssets, refreshDecisions, refreshPortfolio, refreshHistory, refreshPerformance, refreshStats]);
 
   const addAsset = useCallback(async () => {
     if (!active) return;
@@ -187,7 +267,13 @@ export function SessionPanel() {
           setError(body.error.message);
           return false;
         }
-        await refreshDecisions(active.id);
+        await Promise.all([
+          refreshDecisions(active.id),
+          refreshPortfolio(active.id),
+          refreshHistory(active.id),
+          refreshPerformance(active.id),
+          refreshStats(active.id),
+        ]);
         return true;
       } catch {
         setError("Impossible d'enregistrer la decision.");
@@ -196,7 +282,7 @@ export function SessionPanel() {
         setBusy(false);
       }
     },
-    [active, refreshDecisions],
+    [active, refreshDecisions, refreshPortfolio, refreshHistory, refreshPerformance, refreshStats],
   );
 
   const amendDecision = useCallback(
@@ -224,7 +310,13 @@ export function SessionPanel() {
           setError(body.error.message);
           return false;
         }
-        await refreshDecisions(active.id);
+        await Promise.all([
+          refreshDecisions(active.id),
+          refreshPortfolio(active.id),
+          refreshHistory(active.id),
+          refreshPerformance(active.id),
+          refreshStats(active.id),
+        ]);
         return true;
       } catch {
         setError("Impossible de modifier la decision.");
@@ -233,7 +325,7 @@ export function SessionPanel() {
         setBusy(false);
       }
     },
-    [active, refreshDecisions],
+    [active, refreshDecisions, refreshPortfolio, refreshHistory, refreshPerformance, refreshStats],
   );
 
   const createSession = useCallback(async () => {
@@ -337,6 +429,10 @@ export function SessionPanel() {
         ) : active ? (
           <ActiveSessionCard
             session={active}
+            portfolio={portfolio}
+            history={history}
+            performance={performance}
+            stats={stats}
             assets={assets}
             decisions={decisions}
             timeline={timeline}
@@ -349,7 +445,16 @@ export function SessionPanel() {
             disabled={busy}
           />
         ) : closed ? (
-          <ClosedSessionCard session={closed} assets={assets} decisions={decisions} timeline={timeline} />
+          <ClosedSessionCard
+            session={closed}
+            portfolio={portfolio}
+            history={history}
+            performance={performance}
+            stats={stats}
+            assets={assets}
+            decisions={decisions}
+            timeline={timeline}
+          />
         ) : (
           <p style={{ color: "#9aa0a6" }}>
             Aucune session active. Cree-en une pour commencer.
@@ -399,6 +504,10 @@ const dlStyle: React.CSSProperties = {
 
 function ActiveSessionCard({
   session,
+  portfolio,
+  history,
+  performance,
+  stats,
   assets,
   decisions,
   timeline,
@@ -411,6 +520,10 @@ function ActiveSessionCard({
   disabled,
 }: {
   session: SessionContext;
+  portfolio: Portfolio | null;
+  history: PortfolioHistory | null;
+  performance: PortfolioPerformance | null;
+  stats: PortfolioStats | null;
   assets: TrackedAsset[];
   decisions: Decision[];
   timeline: DecisionTimelineEntry[] | null;
@@ -447,6 +560,11 @@ function ActiveSessionCard({
             : "Indisponible"}
         </dd>
       </dl>
+
+      {portfolio && <PortfolioSummary portfolio={portfolio} />}
+      {performance && <PortfolioPerformanceChart performance={performance} />}
+      {stats && <PortfolioStatsSummary stats={stats} />}
+      {history && <PortfolioHistoryTimeline history={history} />}
 
       <SessionAssets
         assets={assets}
@@ -1197,13 +1315,247 @@ function CancellationEditor({
   );
 }
 
+function PortfolioStatsSummary({ stats }: { stats: PortfolioStats }) {
+  const cur = stats.referenceCurrency;
+  const items = [
+    ["Trades", stats.tradeCount.toString()],
+    ["Win rate", `${stats.winRate}%`],
+    ["PnL net", `${stats.netPnL} ${cur}`],
+    ["Drawdown max", `${stats.maxDrawdown} ${cur}`],
+    ["Duree moy.", stats.averageTradeDurationMinutes ? `${stats.averageTradeDurationMinutes} min` : "—"],
+    ["Perf.", `${stats.performanceChange}%`],
+  ];
+
+  return (
+    <div
+      style={{
+        marginTop: 12,
+        padding: "10px 14px",
+        background: "#0f1115",
+        border: "1px solid #2a2f37",
+        borderRadius: 8,
+        fontSize: 12,
+        color: "#9aa0a6",
+      }}
+    >
+      <h3 style={{ margin: "0 0 8px", fontSize: 13, color: "#c2c7cf" }}>
+        Statistiques
+      </h3>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: 8 }}>
+        {items.map(([label, value]) => (
+          <div key={label} style={{ padding: "6px 8px", background: "#161a21", borderRadius: 6 }}>
+            <div style={{ color: "#5f6671", fontSize: 11 }}>{label}</div>
+            <strong style={{ color: "#e6e8eb" }}>{value}</strong>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function PortfolioPerformanceChart({ performance }: { performance: PortfolioPerformance }) {
+  const values = performance.points.map((point) => Number(point.equity));
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const span = max - min || 1;
+  const width = 320;
+  const height = 96;
+  const points = performance.points.map((point, index) => {
+    const x = performance.points.length === 1 ? 0 : (index / (performance.points.length - 1)) * width;
+    const y = height - ((Number(point.equity) - min) / span) * height;
+    return `${x},${y}`;
+  });
+
+  return (
+    <div
+      style={{
+        marginTop: 12,
+        padding: "10px 14px",
+        background: "#0f1115",
+        border: "1px solid #2a2f37",
+        borderRadius: 8,
+        fontSize: 13,
+        color: "#9aa0a6",
+      }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+        <h3 style={{ margin: 0, fontSize: 13, color: "#c2c7cf" }}>Performance</h3>
+        <strong style={{ color: "#5ad17a" }}>
+          {performance.currentCapital} {performance.referenceCurrency}
+        </strong>
+      </div>
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        role="img"
+        aria-label="Courbe d'equite du portefeuille"
+        style={{ width: "100%", maxWidth: width, height: 96, marginTop: 10, overflow: "visible" }}
+      >
+        <polyline
+          fill="none"
+          stroke="#5ad17a"
+          strokeWidth="3"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+          points={points.join(" ")}
+        />
+      </svg>
+      <p style={{ margin: "6px 0 0", color: "#5f6671", fontSize: 12 }}>
+        Capital initial: {performance.initialCapital} {performance.referenceCurrency} · {performance.points.length} points
+      </p>
+    </div>
+  );
+}
+
+function PortfolioHistoryTimeline({ history }: { history: PortfolioHistory }) {
+  const cur = history.referenceCurrency;
+  return (
+    <div
+      style={{
+        marginTop: 12,
+        padding: "10px 14px",
+        background: "#0f1115",
+        border: "1px solid #2a2f37",
+        borderRadius: 8,
+        fontSize: 12,
+        color: "#9aa0a6",
+      }}
+    >
+      <h3 style={{ margin: "0 0 8px", fontSize: 13, color: "#c2c7cf" }}>
+        Historique portefeuille
+      </h3>
+
+      {history.snapshots.length === 0 ? (
+        <p style={{ margin: 0, color: "#5f6671" }}>Aucun snapshot disponible.</p>
+      ) : (
+        <ol
+          style={{
+            listStyle: "none",
+            margin: 0,
+            padding: 0,
+            display: "grid",
+            gap: 6,
+          }}
+        >
+          {history.snapshots.map((snapshot) => (
+            <li
+              key={snapshot.snapshotId}
+              style={{
+                display: "grid",
+                gridTemplateColumns: "56px minmax(90px, 1fr) minmax(90px, 1fr) 80px minmax(120px, 1.4fr)",
+                gap: 8,
+                alignItems: "center",
+                padding: "6px 8px",
+                background: "#161a21",
+                borderRadius: 6,
+              }}
+            >
+              <span style={{ color: "#5ad17a", fontWeight: 700 }}>#{snapshot.sequence}</span>
+              <span>Cash: <strong style={{ color: "#e6e8eb" }}>{snapshot.cash} {cur}</strong></span>
+              <span>Total: <strong style={{ color: "#e6e8eb" }}>{snapshot.totalValue} {cur}</strong></span>
+              <span>{snapshot.positionsCount} pos.</span>
+              <span title={snapshot.recordedAt}>{snapshot.recordedAt}</span>
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
+  );
+}
+
+function PortfolioSummary({ portfolio }: { portfolio: Portfolio }) {
+  const cur = portfolio.referenceCurrency;
+  return (
+    <div
+      style={{
+        marginTop: 16,
+        padding: "10px 14px",
+        background: "#0f1115",
+        border: "1px solid #2a2f37",
+        borderRadius: 8,
+        fontSize: 13,
+        color: "#9aa0a6",
+      }}
+    >
+      <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
+        <span>
+          Liquidites:{" "}
+          <strong style={{ color: "#e6e8eb" }}>
+            {portfolio.cash} {cur}
+          </strong>
+        </span>
+        <span>
+          Valeur totale:{" "}
+          <strong style={{ color: "#5ad17a" }}>
+            {portfolio.totalValue} {cur}
+          </strong>
+        </span>
+        <span>
+          Capital initial:{" "}
+          <strong style={{ color: "#9aa0a6" }}>
+            {portfolio.initialCapital} {cur}
+          </strong>
+        </span>
+      </div>
+
+      {portfolio.positions.length > 0 && (
+        <div style={{ marginTop: 10 }}>
+          <p style={{ margin: "0 0 6px", fontSize: 12, color: "#5f6671" }}>
+            Positions ouvertes
+          </p>
+          <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 4 }}>
+            {portfolio.positions.map((pos) => (
+              <li
+                key={pos.assetId}
+                style={{
+                  display: "flex",
+                  gap: 12,
+                  padding: "4px 8px",
+                  background: "#161a21",
+                  borderRadius: 6,
+                  fontSize: 12,
+                  color: "#c2c7cf",
+                  flexWrap: "wrap",
+                }}
+              >
+                <span style={{ fontFamily: "monospace", color: "#e6e8eb", minWidth: 80 }}>
+                  {pos.assetId}
+                </span>
+                <span>
+                  Qte: <strong style={{ color: "#e6e8eb" }}>{pos.quantity}</strong>
+                </span>
+                <span>
+                  Px moy: <strong style={{ color: "#e6e8eb" }}>{pos.averagePrice}</strong>
+                </span>
+                <span>
+                  Val. marche:{" "}
+                  <strong style={{ color: "#5ad17a" }}>
+                    {pos.marketValue} {cur}
+                  </strong>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ClosedSessionCard({
   session,
+  portfolio,
+  history,
+  performance,
+  stats,
   assets,
   decisions,
   timeline,
 }: {
   session: Session;
+  portfolio: Portfolio | null;
+  history: PortfolioHistory | null;
+  performance: PortfolioPerformance | null;
+  stats: PortfolioStats | null;
   assets: TrackedAsset[];
   decisions: Decision[];
   timeline: DecisionTimelineEntry[] | null;
@@ -1221,6 +1573,11 @@ function ClosedSessionCard({
         <dt style={{ color: "#9aa0a6" }}>Nouvelle decision</dt>
         <dd style={{ margin: 0 }}>Indisponible (session cloturee)</dd>
       </dl>
+
+      {portfolio && <PortfolioSummary portfolio={portfolio} />}
+      {performance && <PortfolioPerformanceChart performance={performance} />}
+      {stats && <PortfolioStatsSummary stats={stats} />}
+      {history && <PortfolioHistoryTimeline history={history} />}
 
       {/* History stays consultable after close (AC 2). */}
       <DecisionHistory decisions={decisions} timeline={timeline} assets={assets} />

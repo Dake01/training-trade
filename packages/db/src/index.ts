@@ -1,6 +1,7 @@
 import type {
   DecisionAmendmentRepository,
   DecisionRepository,
+  PortfolioRepository,
   SessionAssetRepository,
   SessionRepository,
 } from "@training-trade/domain";
@@ -9,6 +10,7 @@ import { createSqliteSessionRepository } from "./repository/sessionRepository";
 import { createSqliteSessionAssetRepository } from "./repository/sessionAssetRepository";
 import { createSqliteDecisionRepository } from "./repository/decisionRepository";
 import { createSqliteDecisionAmendmentRepository } from "./repository/decisionAmendmentRepository";
+import { createSqlitePortfolioRepository } from "./repository/portfolioRepository";
 
 export * from "./client";
 export * from "./schema";
@@ -16,12 +18,14 @@ export * from "./repository/sessionRepository";
 export * from "./repository/sessionAssetRepository";
 export * from "./repository/decisionRepository";
 export * from "./repository/decisionAmendmentRepository";
+export * from "./repository/portfolioRepository";
 
 let defaultClient: DbClient | null = null;
 let defaultRepository: SessionRepository | null = null;
 let defaultAssetRepository: SessionAssetRepository | null = null;
 let defaultDecisionRepository: DecisionRepository | null = null;
 let defaultDecisionAmendmentRepository: DecisionAmendmentRepository | null = null;
+let defaultPortfolioRepository: PortfolioRepository | null = null;
 
 /** Lazily-created singleton DB client backed by the configured SQLite path. */
 export function getDefaultDbClient(): DbClient {
@@ -67,4 +71,14 @@ export function getDefaultDecisionAmendmentRepository(): DecisionAmendmentReposi
     );
   }
   return defaultDecisionAmendmentRepository;
+}
+
+/** Lazily-created singleton portfolio repository used by the API layer. */
+export function getDefaultPortfolioRepository(): PortfolioRepository {
+  if (!defaultPortfolioRepository) {
+    defaultPortfolioRepository = createSqlitePortfolioRepository(
+      getDefaultDbClient(),
+    );
+  }
+  return defaultPortfolioRepository;
 }

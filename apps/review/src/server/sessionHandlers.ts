@@ -2,8 +2,10 @@ import {
   closeSession,
   createSession,
   getActiveSession,
+  initializePortfolio,
   resumeSession,
   systemSessionDeps,
+  type PortfolioRepository,
   type SessionRepository,
 } from "@training-trade/domain";
 import { apiErrors, fail, ok } from "@training-trade/shared";
@@ -12,11 +14,16 @@ import { errorResponse, jsonResponse } from "./http";
 /**
  * POST /api/sessions — create and immediately open a session (story 1.1).
  * Returns 201 on success, or a structured 409 when an active session exists.
- * Business rules live in the domain; this handler only orchestrates.
+ * The portfolio bootstrap is triggered deterministically after session creation
+ * so a session is never durably visible without an initial portfolio.
  */
-export function handleCreateSession(repo: SessionRepository): Response {
+export function handleCreateSession(
+  repo: SessionRepository,
+  portfolioRepo: PortfolioRepository,
+): Response {
   try {
     const session = createSession(repo, systemSessionDeps);
+    initializePortfolio(portfolioRepo, systemSessionDeps, session.id);
     return jsonResponse(ok({ session }), 201);
   } catch (error) {
     return errorResponse(error);
