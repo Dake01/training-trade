@@ -1,4 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+// Import the TradingView helper from a Zod-free subpath: pulling it from the
+// package barrel ("@training-trade/shared") would bundle every Zod schema, which
+// Plasmo/Parcel cannot bundle (z.enum throws at runtime in the popup).
+import { parseTvContext, type TvRawSignals } from "@training-trade/shared/tv";
 import type {
   ApiResponse,
   Decision,
@@ -11,20 +15,13 @@ import type {
 const ISO_DATETIME_RE =
   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/;
 
-/**
- * Light popup entry point. It only talks to the review app's API (active
- * session, its tracked assets, and decision capture/replay) and never touches
- * packages/db directly. No automatic TradingView integration in V1. Configure
- * the API base via the `PLASMO_PUBLIC_API_BASE` env var.
- */
 const API_BASE = process.env.PLASMO_PUBLIC_API_BASE ?? "http://localhost:3000";
 
 type ActiveData = { session: SessionContext | null };
 type AssetsData = { assets: TrackedAsset[] };
 type DecisionsData = { decisions: Decision[] };
 type CaptureDecisionData = { decision: Decision };
-
-type TvTimestampMessage = { type: "TV_TIMESTAMP"; isoTimestamp: string | null };
+type LinkAssetData = { asset: TrackedAsset };
 
 function formatLogicalTime(isoStr: string): string {
   try {
@@ -34,51 +31,201 @@ function formatLogicalTime(isoStr: string): string {
   }
 }
 
+// Executed inside the TradingView page via chrome.scripting.executeScript — must be self-contained.
+/**
+ * Runs INSIDE the TradingView page via chrome.scripting.executeScript, so it
+ * must be fully self-contained (no outside references). It only SCRAPES the DOM
+ * — all parsing happens in the popup via the pure, tested `parseTvContext`.
+ * TradingView's CSS classes are obfuscated and change between deployments, so we
+ * rely on the most stable signals: the header symbol-search button (stable `id`)
+ * and `document.title` (carries the live ticker and usually the live price).
+ */
+function scrapeTvSignals(): TvRawSignals {
+  const raw: TvRawSignals = {
+    title: "",
+    header: "",
+    legend: "",
+    url: "",
+    legendOhlc: "",
+    domPrice: "",
+    timestampText: "",
+  };
+  try {
+    raw.title = (document.title ?? "").trim();
+
+    const headerEl = document.getElementById("header-toolbar-symbol-search");
+    raw.header = (headerEl?.textContent ?? "").trim();
+
+    const legendEl = document.querySelector('[data-name="legend-source-title"]');
+    raw.legend = (legendEl?.textContent ?? "").trim();
+
+    raw.url = new URLSearchParams(location.search).get("symbol") ?? "";
+
+    // Chart legend OHLC for the current bar — its Close is the chart price
+    // (correct in Replay mode). The values live next to the stable
+    // `legend-source-title`; walk up from it to the ancestor that holds the
+    // OHLC text. This avoids guessing the (obfuscated) value-container class.
+    const hasOhlc = (t: string) => /O\s*[0-9]/.test(t) && /C\s*[0-9]/.test(t);
+    if (legendEl) {
+      let node: Element | null = legendEl;
+      for (let i = 0; i < 6 && node; i++) {
+        const text = (node.textContent ?? "").trim();
+        if (hasOhlc(text)) {
+          raw.legendOhlc = text;
+          break;
+        }
+        node = node.parentElement;
+      }
+    }
+    // Robust fallback: scan the page for the smallest element whose text looks
+    // like an OHLC sequence (O<num> H<num> ... C<num>). The shortest match is the
+    // tight legend values container, immune to obfuscated class names.
+    if (!raw.legendOhlc) {
+      const OHLC_SEQ = /O\s*[0-9][0-9.,]*\s*H\s*[0-9][0-9.,]*[\s\S]*?C\s*[0-9]/;
+      let best = "";
+      for (const el of document.querySelectorAll("div,span")) {
+        const text = (el.textContent ?? "").replace(/\s+/g, " ").trim();
+        if (text.length > 0 && text.length < 140 && OHLC_SEQ.test(text)) {
+          if (best === "" || text.length < best.length) best = text;
+        }
+      }
+      if (best) raw.legendOhlc = best;
+    }
+
+    for (const sel of [
+      "[class*='priceValue']",
+      "[class*='lastPrice']",
+      "[class*='last-']",
+      "[class*='currentPrice']",
+    ]) {
+      const el = document.querySelector(sel);
+      const text = (el?.textContent ?? "").trim();
+      if (text) {
+        raw.domPrice = text;
+        break;
+      }
+    }
+
+    // Status-bar date label (current bar time on the chart).
+    for (const sel of [
+      '[class*="statusLine"] [class*="dateRange"]',
+      '[class*="bottom-widgetbar"] [class*="date"]',
+      '[class*="chart-bottom-toolbar"] time',
+      '[class*="statusLine"]',
+    ]) {
+      const el = document.querySelector(sel);
+      const text = (el?.textContent ?? "").trim();
+      if (/\d{4}-\d{2}-\d{2}/.test(text)) {
+        raw.timestampText = text;
+        break;
+      }
+    }
+  } catch {
+    // DOM access failed — return whatever was collected so far
+  }
+  return raw;
+}
+
 function Popup() {
   const [session, setSession] = useState<SessionContext | null>(null);
   const [assets, setAssets] = useState<TrackedAsset[]>([]);
   const [decisions, setDecisions] = useState<Decision[]>([]);
-  const [status, setStatus] = useState<"loading" | "ready" | "error">(
-    "loading",
-  );
+  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [busy, setBusy] = useState(false);
   const [captureError, setCaptureError] = useState<string | null>(null);
 
+  // Manual-input form state
   const [assetId, setAssetId] = useState("");
   const [quantity, setQuantity] = useState("");
   const [referencePrice, setReferencePrice] = useState("");
   const [logicalTimestamp, setLogicalTimestamp] = useState("");
-  const [autoTimestamp, setAutoTimestamp] = useState<string | null>(null);
 
-  // Listen for TV_TIMESTAMP messages from the TradingView content script
+  // TradingView context state
+  const [tvSymbol, setTvSymbol] = useState<string | null>(null);
+  const [tvPrice, setTvPrice] = useState<string | null>(null);
+  const [autoLinking, setAutoLinking] = useState(false);
+  // Diagnostics: raw values seen in the TV page (helps debug detection)
+  const [tvDebug, setTvDebug] = useState<Record<string, string> | null>(null);
+  const [onTradingView, setOnTradingView] = useState(false);
+
+  // Fallback path: free-text symbol input
+  const [manualSymbol, setManualSymbol] = useState("");
+
+  // Tracks which symbol was last auto-linked to prevent repeated attempts
+  const lastLinkedSymbolRef = useRef<string | null>(null);
+
+  // Poll the active TradingView tab directly for symbol + price via executeScript.
+  // This is more reliable than content-script messaging: reads the live DOM
+  // regardless of content-script state or reload timing.
   useEffect(() => {
-    if (typeof chrome === "undefined" || !chrome.runtime?.onMessage) return;
+    if (typeof chrome === "undefined" || !chrome.tabs?.query || !chrome.scripting?.executeScript) return;
 
-    const handleMessage = (msg: unknown) => {
-      if (
-        msg &&
-        typeof msg === "object" &&
-        "type" in msg &&
-        (msg as TvTimestampMessage).type === "TV_TIMESTAMP" &&
-        "isoTimestamp" in msg
-      ) {
-        const ts = (msg as TvTimestampMessage).isoTimestamp;
-        if (ts) setAutoTimestamp(ts);
-      }
+    const poll = () => {
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        const tab = tabs[0];
+        if (!tab?.id || !tab?.url) {
+          setOnTradingView(false);
+          return;
+        }
+        try {
+          if (!new URL(tab.url).hostname.endsWith("tradingview.com")) {
+            setOnTradingView(false);
+            return;
+          }
+        } catch {
+          setOnTradingView(false);
+          return;
+        }
+        setOnTradingView(true);
+        // Inject into ALL frames: the chart (and its OHLC legend) often lives in
+        // a sub-frame that the top-frame-only default would miss. Merge the
+        // signals across frames, taking the first non-empty value for each field.
+        chrome.scripting.executeScript(
+          { target: { tabId: tab.id, allFrames: true }, func: scrapeTvSignals },
+          (results) => {
+            if (chrome.runtime.lastError) {
+              setTvDebug({ injection: chrome.runtime.lastError.message ?? "echec" });
+              return;
+            }
+            const merged: TvRawSignals = {
+              title: "",
+              header: "",
+              legend: "",
+              url: "",
+              legendOhlc: "",
+              domPrice: "",
+              timestampText: "",
+            };
+            for (const r of results ?? []) {
+              const s = r?.result as TvRawSignals | undefined;
+              if (!s) continue;
+              for (const key of Object.keys(merged) as (keyof TvRawSignals)[]) {
+                if (!merged[key] && s[key]) merged[key] = s[key];
+              }
+            }
+            setTvDebug(merged as unknown as Record<string, string>);
+            const { symbol, price, isoTimestamp } = parseTvContext(merged);
+            if (symbol) setTvSymbol(symbol);
+            if (price) setTvPrice(price);
+            if (isoTimestamp) {
+              setLogicalTimestamp((prev) => (prev === "" ? isoTimestamp : prev));
+            }
+          },
+        );
+      });
     };
 
-    chrome.runtime.onMessage.addListener(handleMessage);
-    return () => {
-      chrome.runtime.onMessage.removeListener(handleMessage);
-    };
+    poll();
+    const id = setInterval(poll, 3000);
+    return () => clearInterval(id);
   }, []);
 
-  // Pre-fill logicalTimestamp from content script only if the field is empty
+  // Auto-fill referencePrice from tvPrice when the field is empty
   useEffect(() => {
-    if (autoTimestamp) {
-      setLogicalTimestamp((prev) => (prev === "" ? autoTimestamp : prev));
+    if (tvPrice) {
+      setReferencePrice((prev) => (prev === "" ? tvPrice : prev));
     }
-  }, [autoTimestamp]);
+  }, [tvPrice]);
 
   const loadDecisions = useCallback(async (sessionId: string) => {
     const res = await fetch(
@@ -132,34 +279,122 @@ function Popup() {
     };
   }, [loadDecisions]);
 
+  // Auto-link the TV-detected symbol to the session when not already linked
+  useEffect(() => {
+    if (status !== "ready" || !session || !tvSymbol) return;
+
+    const normalized = tvSymbol.toUpperCase();
+    if (lastLinkedSymbolRef.current === normalized) return;
+
+    const existing = assets.find((a) => a.symbol.toUpperCase() === normalized);
+    if (existing) {
+      lastLinkedSymbolRef.current = normalized;
+      setAssetId(existing.id);
+      return;
+    }
+
+    // Symbol not yet linked — auto-link via the review API
+    lastLinkedSymbolRef.current = normalized;
+    setAutoLinking(true);
+
+    void (async () => {
+      try {
+        const res = await fetch(
+          `${API_BASE}/api/sessions/${encodeURIComponent(session.id)}/assets`,
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ symbol: normalized }),
+          },
+        );
+        const body = (await res.json()) as ApiResponse<LinkAssetData>;
+        if (!res.ok || body.error) return;
+        const linked = body.data?.asset;
+        if (linked) {
+          setAssets((prev) =>
+            prev.some((a) => a.id === linked.id) ? prev : [...prev, linked],
+          );
+          setAssetId(linked.id);
+        }
+      } catch {
+        // Auto-link failed silently — fallback to manual selection
+      } finally {
+        setAutoLinking(false);
+      }
+    })();
+  }, [session, tvSymbol, assets, status]);
+
+  // Effective asset: explicit user selection > first asset (TV path sets assetId via auto-link)
   const effectiveAssetId =
     assetId && assets.some((a) => a.id === assetId)
       ? assetId
       : (assets[0]?.id ?? "");
 
-  const amountsValid =
-    /^\d+(\.\d+)?$/.test(quantity.trim()) &&
-    Number(quantity) > 0 &&
-    /^\d+(\.\d+)?$/.test(referencePrice.trim()) &&
-    Number(referencePrice) > 0;
+  const effectivePrice = referencePrice.trim() || (tvSymbol ? (tvPrice ?? "") : "");
+
+  const quantityValid =
+    /^\d+(\.\d+)?$/.test(quantity.trim()) && Number(quantity) > 0;
+  const priceValid =
+    /^\d+(\.\d+)?$/.test(effectivePrice) && Number(effectivePrice) > 0;
+  const amountsValid = quantityValid && priceValid;
 
   const trimmedTs = logicalTimestamp.trim();
   const logicalTimestampValid =
     trimmedTs === "" || ISO_DATETIME_RE.test(trimmedTs);
 
-  const canCapture =
-    !busy && effectiveAssetId !== "" && amountsValid && logicalTimestampValid;
+  const SYMBOL_VALID_RE = /^[A-Za-z0-9][A-Za-z0-9:/._-]{0,31}$/;
+  const manualSymbolValid = SYMBOL_VALID_RE.test(manualSymbol.trim());
 
-  const capture = async (side: DecisionSide) => {
-    if (!session || !canCapture) return;
+  // TV path: asset already resolved via auto-link
+  const canCaptureTv =
+    !busy && !autoLinking && effectiveAssetId !== "" && amountsValid && logicalTimestampValid;
+
+  // Fallback path: asset will be resolved (or created) at capture time
+  const canCaptureFallback = !busy && manualSymbolValid && amountsValid && logicalTimestampValid;
+
+  const capture = async (side: DecisionSide, isTvPath: boolean) => {
+    if (!session) return;
+    if (isTvPath ? !canCaptureTv : !canCaptureFallback) return;
     setBusy(true);
     setCaptureError(null);
     try {
+      let resolvedAssetId = isTvPath ? effectiveAssetId : "";
+
+      // Fallback path: resolve asset ID from the typed symbol (auto-link if needed)
+      if (!isTvPath) {
+        const normalized = manualSymbol.trim().toUpperCase();
+        const existing = assets.find((a) => a.symbol.toUpperCase() === normalized);
+        if (existing) {
+          resolvedAssetId = existing.id;
+        } else {
+          const linkRes = await fetch(
+            `${API_BASE}/api/sessions/${encodeURIComponent(session.id)}/assets`,
+            {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ symbol: normalized }),
+            },
+          );
+          const linkBody = (await linkRes.json()) as ApiResponse<LinkAssetData>;
+          if (!linkRes.ok || linkBody.error) {
+            setCaptureError(linkBody.error?.message ?? "Impossible de lier l'actif.");
+            return;
+          }
+          const linked = linkBody.data?.asset;
+          if (linked) {
+            setAssets((prev) =>
+              prev.some((a) => a.id === linked.id) ? prev : [...prev, linked],
+            );
+            resolvedAssetId = linked.id;
+          }
+        }
+      }
+
       const payload: Record<string, string> = {
-        assetId: effectiveAssetId,
+        assetId: resolvedAssetId,
         side,
         quantity: quantity.trim(),
-        referencePrice: referencePrice.trim(),
+        referencePrice: effectivePrice,
       };
       if (trimmedTs && logicalTimestampValid) {
         payload.logicalTimestamp = trimmedTs;
@@ -179,7 +414,7 @@ function Popup() {
         return;
       }
       setQuantity("");
-      setReferencePrice("");
+      if (!tvSymbol) setReferencePrice("");
       await loadDecisions(session.id);
     } catch {
       setCaptureError("Application de revue injoignable.");
@@ -187,6 +422,12 @@ function Popup() {
       setBusy(false);
     }
   };
+
+  // Detect which capture path to display
+  const tvActive = tvSymbol !== null;
+  const tvAsset = tvSymbol
+    ? assets.find((a) => a.symbol.toUpperCase() === tvSymbol.toUpperCase())
+    : null;
 
   return (
     <div style={{ width: 280, padding: 16, fontFamily: "system-ui, sans-serif" }}>
@@ -204,24 +445,132 @@ function Popup() {
             <p style={{ margin: "8px 0 4px", fontSize: 12, color: "#9aa0a6" }}>
               Nouvelle decision
             </p>
-            {assets.length === 0 ? (
-              <p style={{ margin: 0, fontSize: 12 }}>
-                Aucun actif associe. Ajoutez-en un dans l&apos;app de revue.
-              </p>
-            ) : (
+
+            {tvActive ? (
+              // Nominal path — TradingView context detected
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                <select
-                  value={effectiveAssetId}
-                  onChange={(event) => setAssetId(event.target.value)}
-                  aria-label="Actif de la decision"
-                  style={{ fontSize: 12, padding: 4 }}
+                <div
+                  style={{
+                    padding: "6px 8px",
+                    background: "#1e2630",
+                    borderRadius: 4,
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                  }}
                 >
-                  {assets.map((asset) => (
-                    <option key={asset.id} value={asset.id}>
-                      {asset.symbol}
-                    </option>
-                  ))}
-                </select>
+                  <span style={{ fontFamily: "monospace", fontWeight: "bold", fontSize: 13 }}>
+                    {tvSymbol}
+                  </span>
+                  {tvPrice && (
+                    <span style={{ fontSize: 12, color: "#9aa0a6" }}>{tvPrice}</span>
+                  )}
+                </div>
+
+                {tvDebug && (
+                  <details style={{ fontSize: 10, color: "#9aa0a6" }}>
+                    <summary style={{ cursor: "pointer" }}>Diagnostic detection</summary>
+                    <pre
+                      style={{
+                        margin: "4px 0 0",
+                        whiteSpace: "pre-wrap",
+                        wordBreak: "break-all",
+                        fontSize: 10,
+                      }}
+                    >
+                      {Object.entries(tvDebug)
+                        .map(([k, v]) => `${k}: ${v || "(vide)"}`)
+                        .join("\n")}
+                    </pre>
+                  </details>
+                )}
+
+                {autoLinking ? (
+                  <p style={{ margin: 0, fontSize: 12, color: "#9aa0a6" }}>
+                    Liaison de l&apos;actif…
+                  </p>
+                ) : (
+                  <>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={quantity}
+                      onChange={(event) => setQuantity(event.target.value)}
+                      placeholder="Quantite"
+                      aria-label="Quantite"
+                      style={{ fontSize: 12, padding: 4 }}
+                    />
+                    {!tvPrice && (
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={referencePrice}
+                        onChange={(event) => setReferencePrice(event.target.value)}
+                        placeholder="Prix"
+                        aria-label="Prix de reference"
+                        style={{ fontSize: 12, padding: 4 }}
+                      />
+                    )}
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <button
+                        type="button"
+                        onClick={() => void capture("buy", true)}
+                        disabled={!canCaptureTv}
+                        style={{ flex: 1, fontSize: 12, padding: 4 }}
+                      >
+                        Acheter
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void capture("sell", true)}
+                        disabled={!canCaptureTv}
+                        style={{ flex: 1, fontSize: 12, padding: 4 }}
+                      >
+                        Vendre
+                      </button>
+                    </div>
+                  </>
+                )}
+
+                {captureError && (
+                  <p style={{ margin: 0, fontSize: 11, color: "#ff8a80" }}>
+                    {captureError}
+                  </p>
+                )}
+              </div>
+            ) : (
+              // Fallback path — no TradingView context, manual symbol entry
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {onTradingView && (
+                  <p style={{ margin: 0, fontSize: 11, color: "#e0b341" }}>
+                    Actif TradingView non detecte. Saisie manuelle ci-dessous.
+                  </p>
+                )}
+                {onTradingView && tvDebug && (
+                  <details style={{ fontSize: 10, color: "#9aa0a6" }}>
+                    <summary style={{ cursor: "pointer" }}>Diagnostic detection</summary>
+                    <pre
+                      style={{
+                        margin: "4px 0 0",
+                        whiteSpace: "pre-wrap",
+                        wordBreak: "break-all",
+                        fontSize: 10,
+                      }}
+                    >
+                      {Object.entries(tvDebug)
+                        .map(([k, v]) => `${k}: ${v || "(vide)"}`)
+                        .join("\n")}
+                    </pre>
+                  </details>
+                )}
+                <input
+                  type="text"
+                  value={manualSymbol}
+                  onChange={(event) => setManualSymbol(event.target.value.toUpperCase())}
+                  placeholder="Actif (ex: AAPL)"
+                  aria-label="Symbole de l'actif"
+                  style={{ fontSize: 12, padding: 4 }}
+                />
                 <div style={{ display: "flex", gap: 6 }}>
                   <input
                     type="text"
@@ -262,16 +611,16 @@ function Popup() {
                 <div style={{ display: "flex", gap: 6 }}>
                   <button
                     type="button"
-                    onClick={() => void capture("buy")}
-                    disabled={!canCapture}
+                    onClick={() => void capture("buy", false)}
+                    disabled={!canCaptureFallback}
                     style={{ flex: 1, fontSize: 12, padding: 4 }}
                   >
                     Acheter
                   </button>
                   <button
                     type="button"
-                    onClick={() => void capture("sell")}
-                    disabled={!canCapture}
+                    onClick={() => void capture("sell", false)}
+                    disabled={!canCaptureFallback}
                     style={{ flex: 1, fontSize: 12, padding: 4 }}
                   >
                     Vendre
