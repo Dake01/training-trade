@@ -1400,9 +1400,26 @@ function PortfolioPerformanceChart({ performance }: { performance: PortfolioPerf
         />
       </svg>
       <p style={{ margin: "6px 0 0", color: "#5f6671", fontSize: 12 }}>
-        Capital initial: {performance.initialCapital} {performance.referenceCurrency} · {performance.points.length} points
+        Capital initial: {performance.initialCapital} {performance.referenceCurrency} · {performance.points.length} trades
       </p>
     </div>
+  );
+}
+
+function subtractDecimalStrings(left: string, right: string): string {
+  const value = Number(left) - Number(right);
+  return Number(value.toFixed(8)).toString();
+}
+
+function WealthDuckIcon(): React.ReactElement {
+  return (
+    <img
+      src="/icon.png"
+      alt=""
+      width={18}
+      height={18}
+      style={{ borderRadius: 4, flex: "0 0 auto" }}
+    />
   );
 }
 
@@ -1441,7 +1458,7 @@ function PortfolioHistoryTimeline({ history }: { history: PortfolioHistory }) {
               key={snapshot.snapshotId}
               style={{
                 display: "grid",
-                gridTemplateColumns: "56px minmax(90px, 1fr) minmax(90px, 1fr) 80px minmax(120px, 1.4fr)",
+                gridTemplateColumns: "56px minmax(110px, 1fr) minmax(130px, 1fr) minmax(110px, 1fr) 80px minmax(120px, 1.4fr)",
                 gap: 8,
                 alignItems: "center",
                 padding: "6px 8px",
@@ -1450,8 +1467,12 @@ function PortfolioHistoryTimeline({ history }: { history: PortfolioHistory }) {
               }}
             >
               <span style={{ color: "#5ad17a", fontWeight: 700 }}>#{snapshot.sequence}</span>
-              <span>Cash: <strong style={{ color: "#e6e8eb" }}>{snapshot.cash} {cur}</strong></span>
-              <span>Total: <strong style={{ color: "#e6e8eb" }}>{snapshot.totalValue} {cur}</strong></span>
+              <span>Solde espece: <strong style={{ color: "#e6e8eb" }}>{snapshot.cash} {cur}</strong></span>
+              <span>Titres en portefeuille: <strong style={{ color: "#e6e8eb" }}>{subtractDecimalStrings(snapshot.totalValue, snapshot.cash)} {cur}</strong></span>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                <WealthDuckIcon />
+                Total: <strong style={{ color: "#e6e8eb" }}>{snapshot.totalValue} {cur}</strong>
+              </span>
               <span>{snapshot.positionsCount} pos.</span>
               <span title={snapshot.recordedAt}>{snapshot.recordedAt}</span>
             </li>
@@ -1478,13 +1499,20 @@ function PortfolioSummary({ portfolio }: { portfolio: Portfolio }) {
     >
       <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
         <span>
-          Liquidites:{" "}
+          Solde espece:{" "}
           <strong style={{ color: "#e6e8eb" }}>
             {portfolio.cash} {cur}
           </strong>
         </span>
         <span>
-          Valeur totale:{" "}
+          Titres en portefeuille:{" "}
+          <strong style={{ color: "#e6e8eb" }}>
+            {subtractDecimalStrings(portfolio.totalValue, portfolio.cash)} {cur}
+          </strong>
+        </span>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+          <WealthDuckIcon />
+          Total:{" "}
           <strong style={{ color: "#5ad17a" }}>
             {portfolio.totalValue} {cur}
           </strong>

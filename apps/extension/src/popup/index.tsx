@@ -126,6 +126,23 @@ function scrapeTvSignals(): TvRawSignals {
   return raw;
 }
 
+function WealthDuckIcon({ size = 28 }: { size?: number }) {
+  const src =
+    typeof chrome !== "undefined" && chrome.runtime?.getURL
+      ? chrome.runtime.getURL("assets/icon.png")
+      : "assets/icon.png";
+
+  return (
+    <img
+      src={src}
+      alt=""
+      width={size}
+      height={size}
+      style={{ borderRadius: 6, flex: "0 0 auto" }}
+    />
+  );
+}
+
 function Popup() {
   const [session, setSession] = useState<SessionContext | null>(null);
   const [assets, setAssets] = useState<TrackedAsset[]>([]);
@@ -458,7 +475,10 @@ function Popup() {
 
   return (
     <div style={{ width: 280, padding: 16, fontFamily: "system-ui, sans-serif" }}>
-      <h3 style={{ margin: "0 0 8px" }}>Training Trade</h3>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+        <WealthDuckIcon size={26} />
+        <h3 style={{ margin: 0 }}>Training Trade</h3>
+      </div>
       {status === "loading" && <p>Chargement…</p>}
       {status === "error" && <p>Application de revue injoignable.</p>}
       {status === "ready" &&
