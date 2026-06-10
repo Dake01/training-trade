@@ -143,6 +143,7 @@ function Popup() {
   // TradingView context state
   const [tvSymbol, setTvSymbol] = useState<string | null>(null);
   const [tvPrice, setTvPrice] = useState<string | null>(null);
+  const [tvTimestamp, setTvTimestamp] = useState<string | null>(null);
   const [autoLinking, setAutoLinking] = useState(false);
   // Diagnostics: raw values seen in the TV page (helps debug detection)
   const [tvDebug, setTvDebug] = useState<Record<string, string> | null>(null);
@@ -153,6 +154,8 @@ function Popup() {
 
   // Tracks which symbol was last auto-linked to prevent repeated attempts
   const lastLinkedSymbolRef = useRef<string | null>(null);
+  const referencePriceSourceRef = useRef<"manual" | "tv">("manual");
+  const logicalTimestampSourceRef = useRef<"manual" | "tv">("manual");
 
   // Poll the active TradingView tab directly for symbol + price via executeScript.
   // This is more reliable than content-script messaging: reads the live DOM
@@ -205,11 +208,9 @@ function Popup() {
             }
             setTvDebug(merged as unknown as Record<string, string>);
             const { symbol, price, isoTimestamp } = parseTvContext(merged);
-            if (symbol) setTvSymbol(symbol);
-            if (price) setTvPrice(price);
-            if (isoTimestamp) {
-              setLogicalTimestamp((prev) => (prev === "" ? isoTimestamp : prev));
-            }
+            setTvSymbol(symbol);
+            setTvPrice(price);
+            setTvTimestamp(isoTimestamp);
           },
         );
       });
@@ -223,9 +224,40 @@ function Popup() {
   // Auto-fill referencePrice from tvPrice when the field is empty
   useEffect(() => {
     if (tvPrice) {
-      setReferencePrice((prev) => (prev === "" ? tvPrice : prev));
+      setReferencePrice((prev) => {
+        if (prev === "" || referencePriceSourceRef.current === "tv") {
+          referencePriceSourceRef.current = "tv";
+          return tvPrice;
+        }
+        return prev;
+      });
+      return;
+    }
+
+    if (referencePriceSourceRef.current === "tv") {
+      referencePriceSourceRef.current = "manual";
+      setReferencePrice("");
     }
   }, [tvPrice]);
+
+  // Auto-fill logicalTimestamp from the TradingView status bar when empty.
+  useEffect(() => {
+    if (tvTimestamp) {
+      setLogicalTimestamp((prev) => {
+        if (prev === "" || logicalTimestampSourceRef.current === "tv") {
+          logicalTimestampSourceRef.current = "tv";
+          return tvTimestamp;
+        }
+        return prev;
+      });
+      return;
+    }
+
+    if (logicalTimestampSourceRef.current === "tv") {
+      logicalTimestampSourceRef.current = "manual";
+      setLogicalTimestamp("");
+    }
+  }, [tvTimestamp]);
 
   const loadDecisions = useCallback(async (sessionId: string) => {
     const res = await fetch(
@@ -324,13 +356,14 @@ function Popup() {
     })();
   }, [session, tvSymbol, assets, status]);
 
-  // Effective asset: explicit user selection > first asset (TV path sets assetId via auto-link)
-  const effectiveAssetId =
-    assetId && assets.some((a) => a.id === assetId)
-      ? assetId
-      : (assets[0]?.id ?? "");
-
-  const effectivePrice = referencePrice.trim() || (tvSymbol ? (tvPrice ?? "") : "");
+  const SYMBOL_VALID_RE = /^[A-Za-z0-9][A-Za-z0-9:/._-]{0,31}$/;
+  const tvAsset = tvSymbol
+    ? assets.find((a) => a.symbol.toUpperCase() === tvSymbol.toUpperCase())
+    : null;
+  const tvCaptureReady = tvSymbol !== null && tvAsset !== null && !autoLinking;
+  const captureSymbol = manualSymbol.trim() || tvSymbol?.trim() || "";
+  const captureSymbolValid = SYMBOL_VALID_RE.test(captureSymbol);
+  const effectivePrice = referencePrice.trim() || (tvCaptureReady ? (tvPrice ?? "") : "");
 
   const quantityValid =
     /^\d+(\.\d+)?$/.test(quantity.trim()) && Number(quantity) > 0;
@@ -341,16 +374,13 @@ function Popup() {
   const trimmedTs = logicalTimestamp.trim();
   const logicalTimestampValid =
     trimmedTs === "" || ISO_DATETIME_RE.test(trimmedTs);
-
-  const SYMBOL_VALID_RE = /^[A-Za-z0-9][A-Za-z0-9:/._-]{0,31}$/;
-  const manualSymbolValid = SYMBOL_VALID_RE.test(manualSymbol.trim());
-
   // TV path: asset already resolved via auto-link
-  const canCaptureTv =
-    !busy && !autoLinking && effectiveAssetId !== "" && amountsValid && logicalTimestampValid;
+  const canCaptureTv = !busy && tvCaptureReady && amountsValid && logicalTimestampValid;
 
-  // Fallback path: asset will be resolved (or created) at capture time
-  const canCaptureFallback = !busy && manualSymbolValid && amountsValid && logicalTimestampValid;
+  // Fallback path: resolve or create the asset at capture time using the typed
+  // symbol, or the detected TV symbol if the asset is visible but not yet linked.
+  const canCaptureFallback =
+    !busy && !autoLinking && captureSymbolValid && amountsValid && logicalTimestampValid;
 
   const capture = async (side: DecisionSide, isTvPath: boolean) => {
     if (!session) return;
@@ -358,11 +388,11 @@ function Popup() {
     setBusy(true);
     setCaptureError(null);
     try {
-      let resolvedAssetId = isTvPath ? effectiveAssetId : "";
+      let resolvedAssetId = isTvPath ? (tvAsset?.id ?? "") : "";
 
       // Fallback path: resolve asset ID from the typed symbol (auto-link if needed)
       if (!isTvPath) {
-        const normalized = manualSymbol.trim().toUpperCase();
+        const normalized = captureSymbol.toUpperCase();
         const existing = assets.find((a) => a.symbol.toUpperCase() === normalized);
         if (existing) {
           resolvedAssetId = existing.id;
@@ -414,7 +444,7 @@ function Popup() {
         return;
       }
       setQuantity("");
-      if (!tvSymbol) setReferencePrice("");
+      if (!tvCaptureReady) setReferencePrice("");
       await loadDecisions(session.id);
     } catch {
       setCaptureError("Application de revue injoignable.");
@@ -425,9 +455,6 @@ function Popup() {
 
   // Detect which capture path to display
   const tvActive = tvSymbol !== null;
-  const tvAsset = tvSymbol
-    ? assets.find((a) => a.symbol.toUpperCase() === tvSymbol.toUpperCase())
-    : null;
 
   return (
     <div style={{ width: 280, padding: 16, fontFamily: "system-ui, sans-serif" }}>
@@ -446,7 +473,7 @@ function Popup() {
               Nouvelle decision
             </p>
 
-            {tvActive ? (
+            {tvCaptureReady ? (
               // Nominal path — TradingView context detected
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 <div
@@ -505,7 +532,10 @@ function Popup() {
                         type="text"
                         inputMode="decimal"
                         value={referencePrice}
-                        onChange={(event) => setReferencePrice(event.target.value)}
+                        onChange={(event) => {
+                          referencePriceSourceRef.current = "manual";
+                          setReferencePrice(event.target.value);
+                        }}
                         placeholder="Prix"
                         aria-label="Prix de reference"
                         style={{ fontSize: 12, padding: 4 }}
@@ -541,10 +571,29 @@ function Popup() {
             ) : (
               // Fallback path — no TradingView context, manual symbol entry
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                {onTradingView && (
-                  <p style={{ margin: 0, fontSize: 11, color: "#e0b341" }}>
-                    Actif TradingView non detecte. Saisie manuelle ci-dessous.
-                  </p>
+                {tvActive && (
+                  <>
+                    <div
+                      style={{
+                        padding: "6px 8px",
+                        background: "#1e2630",
+                        borderRadius: 4,
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                      }}
+                    >
+                      <span style={{ fontFamily: "monospace", fontWeight: "bold", fontSize: 13 }}>
+                        {tvSymbol}
+                      </span>
+                      {tvPrice && (
+                        <span style={{ fontSize: 12, color: "#9aa0a6" }}>{tvPrice}</span>
+                      )}
+                    </div>
+                    <p style={{ margin: 0, fontSize: 11, color: "#e0b341" }}>
+                      Actif TradingView detecte, mais la liaison n&apos;a pas encore abouti.
+                    </p>
+                  </>
                 )}
                 {onTradingView && tvDebug && (
                   <details style={{ fontSize: 10, color: "#9aa0a6" }}>
@@ -567,7 +616,7 @@ function Popup() {
                   type="text"
                   value={manualSymbol}
                   onChange={(event) => setManualSymbol(event.target.value.toUpperCase())}
-                  placeholder="Actif (ex: AAPL)"
+                  placeholder={tvSymbol ? `Actif detecte: ${tvSymbol}` : "Actif (ex: AAPL)"}
                   aria-label="Symbole de l'actif"
                   style={{ fontSize: 12, padding: 4 }}
                 />
@@ -585,7 +634,10 @@ function Popup() {
                     type="text"
                     inputMode="decimal"
                     value={referencePrice}
-                    onChange={(event) => setReferencePrice(event.target.value)}
+                    onChange={(event) => {
+                      referencePriceSourceRef.current = "manual";
+                      setReferencePrice(event.target.value);
+                    }}
                     placeholder="Prix"
                     aria-label="Prix de reference"
                     style={{ width: "50%", fontSize: 12, padding: 4 }}
@@ -594,7 +646,10 @@ function Popup() {
                 <input
                   type="text"
                   value={logicalTimestamp}
-                  onChange={(event) => setLogicalTimestamp(event.target.value)}
+                  onChange={(event) => {
+                    logicalTimestampSourceRef.current = "manual";
+                    setLogicalTimestamp(event.target.value);
+                  }}
                   placeholder="Horodatage (ex: 2025-01-15T09:30:00Z)"
                   aria-label="Horodatage logique (optionnel)"
                   style={{
