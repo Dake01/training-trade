@@ -235,11 +235,87 @@ So that je puisse rester concentré sur la pratique sans dépendre d’une inté
 **Then** le flux de capture reste possible sans synchronisation automatique obligatoire
 **And** la session reste exploitable même si TradingView n’envoie aucune donnée automatique
 
+### Story 1.7: Afficher l’actif courant et capturer buy/sell par quantité depuis TradingView
+
+As a trader amateur,
+I want l’extension affiche automatiquement l’actif courant de TradingView et me laisse seulement saisir la quantité avant de cliquer sur acheter ou vendre,
+So that je puisse enregistrer une décision sans ajouter manuellement l’actif dans la session.
+
+**Acceptance Criteria:**
+
+**Given** une session ouverte dans l’extension et un graphique TradingView actif
+**When** la popup s’ouvre
+**Then** l’extension affiche l’actif courant détecté depuis TradingView de façon visible dans la capture
+**And** le prix courant / de référence détecté est affiché comme contexte de la saisie
+**And** l’utilisateur comprend immédiatement sur quel instrument il agit sans ouvrir la liste des actifs
+
+**Given** l’actif courant est détecté correctement
+**When** l’utilisateur veut enregistrer une décision
+**Then** le chemin normal de capture ne demande que la quantité désirée
+**And** l’utilisateur peut cliquer directement sur `Acheter` ou `Vendre`
+**And** il n’a pas à choisir manuellement un actif dans la popup tant que la détection TradingView fonctionne
+
+**Given** l’actif courant n’est pas encore lié à la session active
+**When** la popup prépare la capture
+**Then** l’extension lie automatiquement cet actif à la session via l’API review existante
+**And** si l’actif est déjà lié, l’entrée existante est réutilisée sans duplication
+**And** la capture peut continuer sans passage manuel par l’app de revue
+
+**Given** la popup est ouverte hors TradingView, ou le DOM de TradingView a changé, ou le prix / symbole ne peut pas être lu de façon fiable
+**When** l’extension ne peut pas déterminer l’actif courant
+**Then** la popup reste utilisable sans état bloquant
+**And** elle n’invente pas un actif incorrect à partir d’une lecture partielle
+**And** un fallback manuel reste possible si nécessaire
+
 <!-- Epic sections follow -->
 
 ## Epic 2: Maintenir le portefeuille simulé et mesurer la performance
 
 L’utilisateur peut voir son portefeuille virtuel évoluer, suivre le capital, la courbe d’équité et les statistiques de base sur ses trades.
+
+### Epic 2 Data Contract
+
+Epic 2 relies on a single accounting truth. The UI can read derived views, but it must not invent portfolio state.
+
+**Source of truth**
+- A portfolio is derived from the ordered sequence of effective decisions plus the initial portfolio snapshot.
+- The canonical state lives in the portfolio ledger / snapshots, not in the chart component and not in the session record.
+- Every read model in 2.3, 2.4, and 2.5 must derive from the same underlying data.
+
+**Canonical terms**
+- `capital initial`: starting capital defined by story 2.1.
+- `cash`: liquid balance available in the reference currency.
+- `position`: quantity held for one asset, with its average cost basis.
+- `portfolio value`: `cash + market value of positions`.
+- `equity`: the time series representation of `portfolio value`.
+- `PnL réalisé`: profit or loss realized when closing or reducing positions.
+- `PnL non réalisé`: profit or loss implied by open positions at the latest reference price.
+- `drawdown`: decline from a prior equity peak, expressed from the same equity series used by the curve.
+
+**Ordering and timing**
+- A decision becomes effective when the system records it as an applied portfolio event, in the order defined by the session timeline.
+- The V1 calculation is long-only, uses the decision `referencePrice`, and does not rely on broker execution, partial fills, fees, slippage, or hidden market data.
+- The UI must not reinterpret timing or recompute values from scratch.
+
+**Invariants**
+- `cash + market value = portfolio value`
+- historical snapshots do not rewrite the past
+- charting does not change accounting values
+- stats read the same effective decision timeline as the portfolio views
+
+**Story responsibilities**
+- Story 2.1 defines the starting capital and reference currency.
+- Story 2.2 mutates the portfolio from each buy/sell decision.
+- Story 2.3 persists and compares historical snapshots by session.
+- Story 2.4 visualizes the derived equity series only.
+- Story 2.5 computes metrics from the same effective data, grouped by session.
+
+**Must-not-skip example shape**
+- start from the initial portfolio snapshot
+- apply one buy decision
+- apply one later reference price / market value update
+- apply one sell decision
+- read the resulting history, equity curve, and stats from the same underlying ledger
 
 ### Story 2.1: Initialiser le portefeuille simulé
 
