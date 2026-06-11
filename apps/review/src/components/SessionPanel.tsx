@@ -569,43 +569,24 @@ function ActiveSessionCard({
         disabled={disabled}
       />
 
-      <div
+      <button
+        type="button"
+        onClick={onClose}
+        disabled={disabled}
         style={{
           marginTop: 24,
-          paddingTop: 20,
-          borderTop: "1px solid #2a2f37",
-          display: "grid",
-          gap: 16,
+          padding: "10px 16px",
+          fontSize: 14,
+          fontWeight: 600,
+          color: "#0f1115",
+          background: "#ffb86b",
+          border: "none",
+          borderRadius: 8,
+          cursor: disabled ? "not-allowed" : "pointer",
         }}
       >
-        <SessionAssets
-          assets={assets}
-          symbolInput={symbolInput}
-          onSymbolChange={onSymbolChange}
-          onAddAsset={onAddAsset}
-          disabled={disabled}
-        />
-
-        <DecisionCapture assets={assets} onCapture={onCapture} disabled={disabled} />
-
-        <button
-          type="button"
-          onClick={onClose}
-          disabled={disabled}
-          style={{
-            padding: "10px 16px",
-            fontSize: 14,
-            fontWeight: 600,
-            color: "#0f1115",
-            background: "#ffb86b",
-            border: "none",
-            borderRadius: 8,
-            cursor: disabled ? "not-allowed" : "pointer",
-          }}
-        >
-          Cloturer la session
-        </button>
-      </div>
+        Cloturer la session
+      </button>
     </div>
   );
 }
