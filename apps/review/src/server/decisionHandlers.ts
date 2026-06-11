@@ -1,3 +1,4 @@
+
 import {
   addDecisionComment,
   applyDecisionToPortfolio,
@@ -12,6 +13,7 @@ import {
   type DecisionRepository,
   type PortfolioRepository,
 } from "@training-trade/domain";
+import { runInTransaction, type DbClient } from "@training-trade/db";
 import {
   amendDecisionRequestSchema,
   apiErrors,
@@ -38,11 +40,21 @@ async function readJsonBody(request: Request): Promise<{ ok: true; value: unknow
  * the payload and orchestrates.
  */
 export async function handleCaptureDecision(
-  repo: DecisionRepository,
-  portfolioRepo: PortfolioRepository,
-  id: string,
-  request: Request,
+  clientOrRepo: DbClient | DecisionRepository,
+  repoOrPortfolio: DecisionRepository | PortfolioRepository,
+  portfolioOrId: PortfolioRepository | string,
+  idOrRequest: string | Request,
+  maybeRequest?: Request,
 ): Promise<Response> {
+  const client = resolveDbClient(clientOrRepo, repoOrPortfolio as PortfolioRepository);
+  const repo = isDbClient(clientOrRepo)
+    ? (repoOrPortfolio as DecisionRepository)
+    : (clientOrRepo as DecisionRepository);
+  const portfolioRepo = isDbClient(clientOrRepo)
+    ? (portfolioOrId as PortfolioRepository)
+    : (repoOrPortfolio as PortfolioRepository);
+  const id = isDbClient(clientOrRepo) ? (idOrRequest as string) : (portfolioOrId as string);
+  const request = isDbClient(clientOrRepo) ? (maybeRequest as Request) : (idOrRequest as Request);
   const body = await readJsonBody(request);
   if (!body.ok) {
     return jsonResponse(
@@ -58,18 +70,23 @@ export async function handleCaptureDecision(
   }
 
   try {
-    const decision = captureDecision(repo, systemDecisionDeps, id, parsed.data);
-    // Apply the decision to the portfolio — best-effort after successful capture.
-    try {
-      applyDecisionToPortfolio(portfolioRepo, systemSessionDeps, id, {
-        decisionId: decision.id,
-        assetId: decision.assetId,
-        side: decision.side,
-        quantity: decision.quantity,
-        referencePrice: decision.referencePrice,
-      });
-    } catch {
-      // Portfolio update failure does not fail the capture response.
+    let decision = null as Awaited<ReturnType<typeof captureDecision>> | null;
+    const mutate = () => {
+      decision = captureDecision(repo, systemDecisionDeps, id, parsed.data);
+      if (portfolioRepo.findBootstrap(id)) {
+        applyDecisionToPortfolio(portfolioRepo, systemSessionDeps, id, {
+          decisionId: decision.id,
+          assetId: decision.assetId,
+          side: decision.side,
+          quantity: decision.quantity,
+          referencePrice: decision.referencePrice,
+        });
+      }
+    };
+    if (client) {
+      runInTransaction(client, mutate);
+    } else {
+      mutate();
     }
     return jsonResponse(ok({ decision }), 201);
   } catch (error) {
@@ -87,12 +104,29 @@ export async function handleCaptureDecision(
  * handler validates the payload and dispatches on `kind`.
  */
 export async function handleAmendDecision(
-  repo: DecisionAmendmentRepository,
-  portfolioRepo: PortfolioRepository,
-  sessionId: string,
-  decisionId: string,
-  request: Request,
+  clientOrRepo: DbClient | DecisionAmendmentRepository,
+  repoOrPortfolio: DecisionAmendmentRepository | PortfolioRepository,
+  portfolioOrSessionId: PortfolioRepository | string,
+  sessionIdOrDecisionId: string,
+  decisionIdOrRequest: string | Request,
+  maybeRequest?: Request,
 ): Promise<Response> {
+  const client = resolveDbClient(clientOrRepo, repoOrPortfolio as PortfolioRepository);
+  const repo = isDbClient(clientOrRepo)
+    ? (repoOrPortfolio as DecisionAmendmentRepository)
+    : (clientOrRepo as DecisionAmendmentRepository);
+  const portfolioRepo = isDbClient(clientOrRepo)
+    ? (portfolioOrSessionId as PortfolioRepository)
+    : (repoOrPortfolio as PortfolioRepository);
+  const sessionId = isDbClient(clientOrRepo)
+    ? sessionIdOrDecisionId
+    : (portfolioOrSessionId as string);
+  const decisionId = isDbClient(clientOrRepo)
+    ? (decisionIdOrRequest as string)
+    : sessionIdOrDecisionId;
+  const request = isDbClient(clientOrRepo)
+    ? (maybeRequest as Request)
+    : (decisionIdOrRequest as Request);
   const body = await readJsonBody(request);
   if (!body.ok) {
     return jsonResponse(
@@ -108,24 +142,25 @@ export async function handleAmendDecision(
   }
 
   try {
-    const amendment = parsed.data;
-    const decision =
-      amendment.kind === "comment"
-        ? addDecisionComment(repo, systemDecisionDeps, sessionId, decisionId, {
-            comment: amendment.comment,
-          })
-        : amendment.kind === "correction"
-          ? correctDecision(repo, systemDecisionDeps, sessionId, decisionId, {
-              reason: amendment.reason,
-              replacement: amendment.replacement,
+    let decision = null as Awaited<ReturnType<typeof addDecisionComment>> | null;
+    const mutate = () => {
+      const amendment = parsed.data;
+      decision =
+        amendment.kind === "comment"
+          ? addDecisionComment(repo, systemDecisionDeps, sessionId, decisionId, {
+              comment: amendment.comment,
             })
-          : cancelDecision(repo, systemDecisionDeps, sessionId, decisionId, {
-              reason: amendment.reason,
-            });
+          : amendment.kind === "correction"
+            ? correctDecision(repo, systemDecisionDeps, sessionId, decisionId, {
+                reason: amendment.reason,
+                replacement: amendment.replacement,
+              })
+            : cancelDecision(repo, systemDecisionDeps, sessionId, decisionId, {
+                reason: amendment.reason,
+              });
 
-    // Corrections and cancellations change the effective portfolio state — rebuild.
-    if (amendment.kind !== "comment") {
-      try {
+      // Corrections and cancellations change the effective portfolio state — rebuild.
+      if (amendment.kind !== "comment" && portfolioRepo.findBootstrap(sessionId)) {
         const timeline = listDecisionTimeline(repo, sessionId);
         const effective = timeline
           .filter((e) => e.decision.revisionStatus !== "cancelled")
@@ -137,9 +172,12 @@ export async function handleAmendDecision(
             referencePrice: e.decision.referencePrice,
           }));
         rebuildSessionPortfolio(portfolioRepo, systemSessionDeps, sessionId, effective);
-      } catch {
-        // Portfolio rebuild failure does not fail the amendment response.
       }
+    };
+    if (client) {
+      runInTransaction(client, mutate);
+    } else {
+      mutate();
     }
 
     return jsonResponse(ok({ decision }), 201);
@@ -171,4 +209,16 @@ export function handleListSessionDecisions(
   } catch (error) {
     return errorResponse(error);
   }
+}
+
+function isDbClient(value: unknown): value is DbClient {
+  return typeof value === "object" && value !== null && "sqlite" in value && "db" in value;
+}
+
+function resolveDbClient(primary: unknown, fallback: PortfolioRepository): DbClient | null {
+  const fromPrimary = (primary as { __client?: DbClient } | null | undefined)?.__client;
+  if (fromPrimary) return fromPrimary;
+  const fromFallback = (fallback as { __client?: DbClient } | null | undefined)?.__client;
+  if (fromFallback) return fromFallback;
+  return null;
 }

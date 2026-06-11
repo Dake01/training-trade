@@ -1,7 +1,8 @@
+
 import type { Portfolio } from "@training-trade/shared";
 import type { DecisionSide } from "@training-trade/shared";
 import type { SessionDeps } from "../sessions/types";
-import { applyDecisionToPortfolio, type ApplyDecisionInput } from "./applyDecisionToPortfolio";
+import { applyDecisionToStore, type ApplyDecisionInput } from "./applyDecisionToPortfolio";
 import { PortfolioNotFoundError } from "./errors";
 import { toPortfolio } from "./mappers";
 import type { PortfolioRepository } from "./types";
@@ -31,35 +32,24 @@ export function rebuildSessionPortfolio(
   sessionId: string,
   effectiveDecisions: EffectiveDecisionEntry[],
 ): Portfolio {
-  // Delete decision snapshots atomically first.
-  repo.transaction((store) => {
+  return repo.transaction((store) => {
     const bootstrap = store.findBootstrap(sessionId);
     if (!bootstrap) throw new PortfolioNotFoundError();
+
     store.deleteDecisionSnapshots(sessionId);
+
+    let portfolio: Portfolio = toPortfolio(bootstrap, [], bootstrap.createdAt);
+    for (const entry of effectiveDecisions) {
+      const input: ApplyDecisionInput = {
+        decisionId: entry.decisionId,
+        assetId: entry.assetId,
+        side: entry.side,
+        quantity: entry.quantity,
+        referencePrice: entry.referencePrice,
+      };
+      portfolio = applyDecisionToStore(store, deps, sessionId, input);
+    }
+
+    return portfolio;
   });
-
-  // Re-apply each effective decision sequentially (non-cancelled ones).
-  let portfolio: Portfolio | null = null;
-  for (const entry of effectiveDecisions) {
-    const input: ApplyDecisionInput = {
-      decisionId: entry.decisionId,
-      assetId: entry.assetId,
-      side: entry.side,
-      quantity: entry.quantity,
-      referencePrice: entry.referencePrice,
-    };
-    portfolio = applyDecisionToPortfolio(repo, deps, sessionId, input);
-  }
-
-  // If no effective decisions, return the bootstrap state.
-  if (!portfolio) {
-    const result = repo.transaction((store) => {
-      const bootstrap = store.findBootstrap(sessionId);
-      if (!bootstrap) throw new PortfolioNotFoundError();
-      return toPortfolio(bootstrap, [], bootstrap.createdAt);
-    });
-    return result;
-  }
-
-  return portfolio;
 }

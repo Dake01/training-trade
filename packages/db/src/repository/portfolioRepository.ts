@@ -8,6 +8,7 @@ import type {
 import { sessionStatusSchema } from "@training-trade/shared";
 import type { SessionRecord } from "@training-trade/domain";
 import type { DbClient } from "../client";
+import { runInTransaction } from "../client";
 import { portfolioPositions, type PortfolioPositionRow } from "../schema/portfolioPositions";
 import { portfolioSnapshots, type PortfolioSnapshotRow } from "../schema/portfolio";
 import { sessions } from "../schema/sessions";
@@ -210,10 +211,10 @@ export function createSqlitePortfolioRepository(
   };
 
   return {
+    __client: client,
     findBootstrap,
     transaction: <T>(fn: (store: PortfolioStore) => T): T => {
-      const runner = sqlite.transaction(() => fn(store));
-      return runner() as T;
+      return runInTransaction(client, () => fn(store));
     },
   };
 }

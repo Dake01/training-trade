@@ -8,6 +8,7 @@ import type {
 } from "@training-trade/domain";
 import { decisionSideSchema, sessionStatusSchema } from "@training-trade/shared";
 import type { DbClient } from "../client";
+import { runInTransaction } from "../client";
 import { sessions, type SessionRow } from "../schema/sessions";
 import { sessionAssets, type SessionAssetRow } from "../schema/assets";
 import { decisions, type DecisionRow } from "../schema/decisions";
@@ -120,9 +121,9 @@ export function createSqliteDecisionRepository(
   };
 
   return {
+    __client: client,
     transaction: <T>(fn: (store: DecisionStore) => T): T => {
-      const runner = sqlite.transaction(() => fn(store));
-      return runner() as T;
+      return runInTransaction(client, () => fn(store));
     },
   };
 }

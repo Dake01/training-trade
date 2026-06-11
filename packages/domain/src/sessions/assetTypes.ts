@@ -48,6 +48,7 @@ export interface SessionAssetStore {
  * find-or-create + link sequence exclusive, atomic access.
  */
 export interface SessionAssetRepository {
+  __client?: unknown;
   transaction<T>(fn: (store: SessionAssetStore) => T): T;
 }
 

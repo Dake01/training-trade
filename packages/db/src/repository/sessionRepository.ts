@@ -6,6 +6,7 @@ import type {
 } from "@training-trade/domain";
 import { sessionStatusSchema } from "@training-trade/shared";
 import type { DbClient } from "../client";
+import { runInTransaction } from "../client";
 import { sessions, type SessionRow } from "../schema/sessions";
 
 /** Map a snake_case-backed Drizzle row to the camelCase domain record. */
@@ -81,11 +82,11 @@ export function createSqliteSessionRepository(
   };
 
   return {
+    __client: client,
     findActive,
     findById,
     transaction: <T>(fn: (store: SessionStore) => T): T => {
-      const runner = sqlite.transaction(() => fn(store));
-      return runner() as T;
+      return runInTransaction(client, () => fn(store));
     },
   };
 }

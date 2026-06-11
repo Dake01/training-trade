@@ -57,6 +57,7 @@ export interface PortfolioStore {
  * in production and by in-memory fakes in unit tests.
  */
 export interface PortfolioRepository {
+  __client?: unknown;
   findBootstrap(sessionId: string): PortfolioSnapshotRecord | null;
   transaction<T>(fn: (store: PortfolioStore) => T): T;
 }

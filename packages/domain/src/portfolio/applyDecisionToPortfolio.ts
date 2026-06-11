@@ -1,9 +1,15 @@
+
 import type { Portfolio } from "@training-trade/shared";
 import type { DecisionSide } from "@training-trade/shared";
 import { toPortfolio } from "./mappers";
-import { add, cmp, div, mul, sub, toDecimalString } from "./arithmetic";
+import { add, cmp, div, mul, sub } from "./arithmetic";
 import { InsufficientPositionError, PortfolioNotFoundError } from "./errors";
-import type { PortfolioPositionRecord, PortfolioRepository, PortfolioSnapshotRecord } from "./types";
+import type {
+  PortfolioPositionRecord,
+  PortfolioRepository,
+  PortfolioSnapshotRecord,
+  PortfolioStore,
+} from "./types";
 import type { SessionDeps } from "../sessions/types";
 
 export interface ApplyDecisionInput {
@@ -30,67 +36,81 @@ export function applyDecisionToPortfolio(
   sessionId: string,
   input: ApplyDecisionInput,
 ): Portfolio {
-  return repo.transaction((store) => {
-    const bootstrap = store.findBootstrap(sessionId);
-    if (!bootstrap) throw new PortfolioNotFoundError();
+  return repo.transaction((store) => applyDecisionToStore(store, deps, sessionId, input));
+}
 
-    // Idempotent: return existing snapshot if this decision was already applied.
-    const existing = store.findSnapshotByDecision(sessionId, input.decisionId);
-    if (existing) {
-      const positions = store.findPositionsBySnapshot(existing.id);
-      return toPortfolio(existing, positions, bootstrap.createdAt);
-    }
+/**
+ * Apply a decision inside an already-open portfolio transaction.
+ *
+ * This helper lets the capture flow and the portfolio rebuild flow share the
+ * same business logic without opening a nested repository transaction for each
+ * replayed decision.
+ */
+export function applyDecisionToStore(
+  store: PortfolioStore,
+  deps: SessionDeps,
+  sessionId: string,
+  input: ApplyDecisionInput,
+): Portfolio {
+  const bootstrap = store.findBootstrap(sessionId);
+  if (!bootstrap) throw new PortfolioNotFoundError();
 
-    // Get current state (latest snapshot + positions).
-    const latest = store.findLatestSnapshot(sessionId);
-    const currentCash = latest?.cash ?? bootstrap.cash;
-    const currentPositions = latest ? store.findPositionsBySnapshot(latest.id) : [];
-    const currentIndex = latest?.snapshotIndex ?? 0;
+  // Idempotent: return existing snapshot if this decision was already applied.
+  const existing = store.findSnapshotByDecision(sessionId, input.decisionId);
+  if (existing) {
+    const positions = store.findPositionsBySnapshot(existing.id);
+    return toPortfolio(existing, positions, bootstrap.createdAt);
+  }
 
-    const nowIso = deps.clock.now().toISOString();
-    const snapshotId = deps.ids.generate();
-    const cost = mul(input.quantity, input.referencePrice);
+  // Get current state (latest snapshot + positions).
+  const latest = store.findLatestSnapshot(sessionId);
+  const currentCash = latest?.cash ?? bootstrap.cash;
+  const currentPositions = latest ? store.findPositionsBySnapshot(latest.id) : [];
+  const currentIndex = latest?.snapshotIndex ?? 0;
 
-    // Build new positions array.
-    const updatedPositions = applyToPositions(
-      currentPositions,
-      input.assetId,
-      input.side,
-      input.quantity,
-      input.referencePrice,
-      snapshotId,
-      deps,
-      nowIso,
-    );
+  const nowIso = deps.clock.now().toISOString();
+  const snapshotId = deps.ids.generate();
+  const cost = mul(input.quantity, input.referencePrice);
 
-    // Compute new cash.
-    const newCash =
-      input.side === "buy"
-        ? sub(currentCash, cost)
-        : add(currentCash, cost);
+  // Build new positions array.
+  const updatedPositions = applyToPositions(
+    currentPositions,
+    input.assetId,
+    input.side,
+    input.quantity,
+    input.referencePrice,
+    snapshotId,
+    deps,
+    nowIso,
+  );
 
-    // Total value = cash + sum of market values.
-    const marketTotal = updatedPositions.reduce(
-      (acc, pos) => add(acc, pos.marketValue),
-      "0",
-    );
-    const newTotalValue = add(newCash, marketTotal);
+  // Compute new cash.
+  const newCash =
+    input.side === "buy"
+      ? sub(currentCash, cost)
+      : add(currentCash, cost);
 
-    const snapshot: PortfolioSnapshotRecord = {
-      id: snapshotId,
-      sessionId,
-      kind: "decision",
-      cash: newCash,
-      referenceCurrency: bootstrap.referenceCurrency,
-      totalValue: newTotalValue,
-      snapshotIndex: currentIndex + 1,
-      createdAt: nowIso,
-      decisionId: input.decisionId,
-    };
+  // Total value = cash + sum of market values.
+  const marketTotal = updatedPositions.reduce(
+    (acc, pos) => add(acc, pos.marketValue),
+    "0",
+  );
+  const newTotalValue = add(newCash, marketTotal);
 
-    store.appendSnapshot(snapshot, updatedPositions);
-    return toPortfolio(snapshot, updatedPositions, bootstrap.createdAt);
-  });
+  const snapshot: PortfolioSnapshotRecord = {
+    id: snapshotId,
+    sessionId,
+    kind: "decision",
+    cash: newCash,
+    referenceCurrency: bootstrap.referenceCurrency,
+    totalValue: newTotalValue,
+    snapshotIndex: currentIndex + 1,
+    createdAt: nowIso,
+    decisionId: input.decisionId,
+  };
+
+  store.appendSnapshot(snapshot, updatedPositions);
+  return toPortfolio(snapshot, updatedPositions, bootstrap.createdAt);
 }
 
 function applyToPositions(

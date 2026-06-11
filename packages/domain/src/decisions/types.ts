@@ -54,5 +54,6 @@ export interface DecisionStore {
  * session + link check + insert sequence exclusive, atomic access.
  */
 export interface DecisionRepository {
+  __client?: unknown;
   transaction<T>(fn: (store: DecisionStore) => T): T;
 }

@@ -8,6 +8,7 @@ import type {
 } from "@training-trade/domain";
 import { sessionStatusSchema } from "@training-trade/shared";
 import type { DbClient } from "../client";
+import { runInTransaction } from "../client";
 import { sessions, type SessionRow } from "../schema/sessions";
 import {
   assets,
@@ -167,9 +168,9 @@ export function createSqliteSessionAssetRepository(
   };
 
   return {
+    __client: client,
     transaction: <T>(fn: (store: SessionAssetStore) => T): T => {
-      const runner = sqlite.transaction(() => fn(store));
-      return runner() as T;
+      return runInTransaction(client, () => fn(store));
     },
   };
 }

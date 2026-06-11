@@ -3,6 +3,47 @@
 Outil **personnel** de simulation et de mesure de trading (replay). V1 locale, sans
 broker, sans trading réel, sans automatisation d'ordres.
 
+## Démarrage local
+
+### Prérequis
+
+- Node.js 20 ou plus.
+- `pnpm` activé via Corepack.
+- Une base SQLite locale. Par défaut, le chemin est `.data/training-trade.sqlite`
+  si `DATABASE_URL` n'est pas défini.
+
+### Installation
+
+```bash
+corepack enable
+pnpm install
+```
+
+Si `pnpm` n'est pas encore disponible après `corepack enable`, activez la
+version attendue par le dépôt :
+
+```bash
+corepack prepare pnpm@9.15.4 --activate
+```
+
+### Lancer l'application de revue
+
+```bash
+pnpm --filter @training-trade/review dev
+```
+
+Cette commande démarre l'application Next.js qui expose aussi les route
+handlers API utilisés par le reste du workspace.
+
+### Lancer l'extension
+
+```bash
+pnpm --filter @training-trade/extension dev
+```
+
+Lancez d'abord `apps/review` si vous voulez que l'extension puisse joindre
+l'API locale.
+
 ## Source de vérité (V1)
 
 **SQLite est la source de vérité locale en V1.** La base est gérée par
@@ -34,9 +75,8 @@ pnpm lint         # idem (qualité)
 pnpm build        # build de chaque package/app
 ```
 
-> pnpm est fourni via corepack. Sur Node 20, activez une version compatible :
-> `corepack enable --install-directory ~/.local/bin pnpm` puis ajoutez
-> `~/.local/bin` au `PATH`.
+> `pnpm` est fourni via Corepack. Le dépôt cible `pnpm@9.15.4` via le champ
+> `packageManager`.
 
 ## API V1 (story 1.1)
 

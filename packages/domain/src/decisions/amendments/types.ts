@@ -76,5 +76,6 @@ export interface DecisionAmendmentStore {
  * check + append sequence exclusive, atomic access.
  */
 export interface DecisionAmendmentRepository {
+  __client?: unknown;
   transaction<T>(fn: (store: DecisionAmendmentStore) => T): T;
 }

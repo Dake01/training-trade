@@ -20,6 +20,33 @@ export interface DbClient {
   close(): void;
 }
 
+const transactionDepth = new WeakMap<Database.Database, number>();
+
+/**
+ * Run a function inside a SQLite transaction, but reuse the current transaction
+ * when the caller is already inside one. This lets the API layer compose
+ * session + portfolio + amendment writes atomically without nested BEGIN calls.
+ */
+export function runInTransaction<T>(client: DbClient, fn: () => T): T {
+  const depth = transactionDepth.get(client.sqlite) ?? 0;
+  if (depth > 0) {
+    transactionDepth.set(client.sqlite, depth + 1);
+    try {
+      return fn();
+    } finally {
+      transactionDepth.set(client.sqlite, depth);
+    }
+  }
+
+  transactionDepth.set(client.sqlite, 1);
+  try {
+    const runner = client.sqlite.transaction(fn);
+    return runner() as T;
+  } finally {
+    transactionDepth.delete(client.sqlite);
+  }
+}
+
 /** Resolve the configured database path, accepting an optional `file:` prefix. */
 export function resolveDatabasePath(
   raw: string | undefined = process.env.DATABASE_URL,

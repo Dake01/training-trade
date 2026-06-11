@@ -43,6 +43,7 @@ export interface SessionStore {
  * in-memory fakes in unit tests.
  */
 export interface SessionRepository {
+  __client?: unknown;
   findActive(): SessionRecord | null;
   findById(id: string): SessionRecord | null;
   /**

@@ -1,4 +1,6 @@
+
 import {
+  getDefaultDbClient,
   getDefaultDecisionAmendmentRepository,
   getDefaultPortfolioRepository,
 } from "@training-trade/db";
@@ -14,6 +16,7 @@ export async function POST(
 ): Promise<Response> {
   const { id, decisionId } = await ctx.params;
   return handleAmendDecision(
+    getDefaultDbClient(),
     getDefaultDecisionAmendmentRepository(),
     getDefaultPortfolioRepository(),
     id,

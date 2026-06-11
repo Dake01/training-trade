@@ -1,4 +1,6 @@
+
 import {
+  getDefaultDbClient,
   getDefaultDecisionAmendmentRepository,
   getDefaultDecisionRepository,
   getDefaultPortfolioRepository,
@@ -18,6 +20,7 @@ export async function POST(
 ): Promise<Response> {
   const { id } = await ctx.params;
   return handleCaptureDecision(
+    getDefaultDbClient(),
     getDefaultDecisionRepository(),
     getDefaultPortfolioRepository(),
     id,
