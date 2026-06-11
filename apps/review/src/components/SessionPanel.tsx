@@ -1405,6 +1405,12 @@ function PortfolioStatsSummary({ stats }: { stats: PortfolioStats }) {
     ["Perf.", `${stats.performanceChange}%`],
   ];
 
+  const tooltips: Record<string, string> = {
+    "Win rate": "Pourcentage de trades profitables (gagnants / total)",
+    "Drawdown max": "Perte maximale du portefeuille depuis son sommet",
+    "Duree moy.": "Temps moyen entre ouverture et fermeture d'une position",
+  };
+
   return (
     <div
       style={{
@@ -1420,8 +1426,14 @@ function PortfolioStatsSummary({ stats }: { stats: PortfolioStats }) {
       </h3>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 10 }}>
         {items.map(([label, value]) => (
-          <div key={label} style={{ paddingBottom: 8 }}>
-            <div style={{ color: "#7a8087", fontSize: 11, marginBottom: 4 }}>{label}</div>
+          <div
+            key={label}
+            style={{ paddingBottom: 8 }}
+            title={tooltips[label as keyof typeof tooltips]}
+          >
+            <div style={{ color: "#7a8087", fontSize: 11, marginBottom: 4, cursor: tooltips[label as keyof typeof tooltips] ? "help" : "default" }}>
+              {label}
+            </div>
             <strong style={{ color: "#e6e8eb", fontSize: 14 }}>{value}</strong>
           </div>
         ))}
