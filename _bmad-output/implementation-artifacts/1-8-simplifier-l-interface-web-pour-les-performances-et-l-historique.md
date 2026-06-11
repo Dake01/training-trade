@@ -222,3 +222,9 @@ Claude Haiku 4.5
   - Historique des décisions: `11/06/26 14:32` au lieu de timestamp ISO complet
   - "Ouverte le" et "Cloturee le": même format standardisé avec année
   - Tests: 328/328 ✓
+- 2026-06-11: Ajout de tooltips explicatifs pour les statistiques
+  - Win rate: "Pourcentage de trades profitables (gagnants / total)"
+  - Drawdown max: "Perte maximale du portefeuille depuis son sommet"
+  - Duree moy: "Temps moyen entre ouverture et fermeture d'une position"
+  - Cursor change en "help" pour indiquer la présence de tooltip
+  - Tests: 328/328 ✓
