@@ -1398,15 +1398,13 @@ function PortfolioStatsSummary({ stats }: { stats: PortfolioStats }) {
   const cur = stats.referenceCurrency;
   const items = [
     ["Trades", stats.tradeCount.toString()],
-    ["Win rate", `${stats.winRate}%`],
+    ["Rendement", `${stats.performanceChange}%`],
     ["PnL net", `${stats.netPnL} ${cur}`],
     ["Drawdown max", `${stats.maxDrawdown} ${cur}`],
-    ["Duree moy.", stats.averageTradeDurationMinutes ? `${stats.averageTradeDurationMinutes} min` : "—"],
-    ["Perf.", `${stats.performanceChange}%`],
   ];
 
   const tooltips: Record<string, string> = {
-    "Win rate": "Pourcentage de trades profitables (gagnants / total)",
+    "Rendement": "Retour sur investissement en pourcentage (gain/perte par rapport au capital initial)",
     "Drawdown max": "Perte maximale du portefeuille depuis son sommet",
     "Duree moy.": "Temps moyen entre ouverture et fermeture d'une position",
   };
