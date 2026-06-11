@@ -228,3 +228,9 @@ Claude Haiku 4.5
   - Duree moy: "Temps moyen entre ouverture et fermeture d'une position"
   - Cursor change en "help" pour indiquer la présence de tooltip
   - Tests: 328/328 ✓
+- 2026-06-11: Simplification des statistiques affichées
+  - Remplace "Win rate" par "Rendement" (retour sur investissement %)
+  - Supprime "Duree moy." (durée moyenne)
+  - Garde: Trades, Rendement, PnL net, Drawdown max
+  - Tooltip Rendement: "Retour sur investissement en pourcentage (gain/perte par rapport au capital initial)"
+  - Tests: 328/328 ✓
