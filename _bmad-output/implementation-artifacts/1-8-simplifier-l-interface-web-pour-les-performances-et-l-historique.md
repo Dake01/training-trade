@@ -218,3 +218,7 @@ Claude Haiku 4.5
 - 2026-06-11: Story créée et marquée `ready-for-dev`
 - 2026-06-11: Implémentation complète — refonte de la hiérarchie visuelle, retrait du tableau portefeuille, amélioration de la scannabilité de l'historique
   - TypeCheck: ✓ | Lint: ✓ | Tests: 328/328 ✓ | Build: ✓
+- 2026-06-11: Amélioration des timestamps — format compact JJ/MM HH:MM appliqué partout
+  - Historique des décisions: `11/06 14:32` au lieu de timestamp ISO complet
+  - "Ouverte le" et "Cloturee le": même format standardisé
+  - Tests: 328/328 ✓
