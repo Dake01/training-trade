@@ -1400,13 +1400,10 @@ function PortfolioStatsSummary({ stats }: { stats: PortfolioStats }) {
     ["Trades", stats.tradeCount.toString()],
     ["Rendement", `${stats.performanceChange}%`],
     ["PnL net", `${stats.netPnL} ${cur}`],
-    ["Drawdown max", `${stats.maxDrawdown} ${cur}`],
   ];
 
   const tooltips: Record<string, string> = {
     "Rendement": "Retour sur investissement en pourcentage (gain/perte par rapport au capital initial)",
-    "Drawdown max": "Perte maximale du portefeuille depuis son sommet",
-    "Duree moy.": "Temps moyen entre ouverture et fermeture d'une position",
   };
 
   return (
@@ -1441,6 +1438,8 @@ function PortfolioStatsSummary({ stats }: { stats: PortfolioStats }) {
 }
 
 function PortfolioPerformanceChart({ performance }: { performance: PortfolioPerformance }) {
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+
   const values = performance.points.map((point) => Number(point.equity));
   const min = Math.min(...values);
   const max = Math.max(...values);
@@ -1450,8 +1449,32 @@ function PortfolioPerformanceChart({ performance }: { performance: PortfolioPerf
   const points = performance.points.map((point, index) => {
     const x = performance.points.length === 1 ? 0 : (index / (performance.points.length - 1)) * width;
     const y = height - ((Number(point.equity) - min) / span) * height;
-    return `${x},${y}`;
+    return { x, y, equity: point.equity };
   });
+
+  const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
+    if (points.length === 0) return;
+    const svg = e.currentTarget;
+    const rect = svg.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * width;
+
+    let closest = 0;
+    let minDist = Math.abs(points[0]!.x - x);
+    for (let i = 1; i < points.length; i++) {
+      const dist = Math.abs(points[i]!.x - x);
+      if (dist < minDist) {
+        minDist = dist;
+        closest = i;
+      }
+    }
+    setHoveredIndex(closest);
+  };
+
+  const handleMouseLeave = () => {
+    setHoveredIndex(null);
+  };
+
+  const hoveredPoint = hoveredIndex !== null ? points[hoveredIndex] : null;
 
   return (
     <div
@@ -1467,9 +1490,11 @@ function PortfolioPerformanceChart({ performance }: { performance: PortfolioPerf
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12, marginBottom: 12 }}>
         <h3 style={{ margin: 0, fontSize: 13, fontWeight: 600, color: "#c2c7cf" }}>Courbe d&apos;équité</h3>
         <div style={{ textAlign: "right" }}>
-          <div style={{ color: "#7a8087", fontSize: 11, marginBottom: 2 }}>Capital courant</div>
+          <div style={{ color: "#7a8087", fontSize: 11, marginBottom: 2 }}>
+            {hoveredPoint ? `Capital pointé` : "Capital courant"}
+          </div>
           <div style={{ color: "#5ad17a", fontWeight: 600, fontSize: 14 }}>
-            {performance.currentCapital} <span style={{ color: "#4a9d6a", fontWeight: 400, fontSize: 13 }}>{performance.referenceCurrency}</span>
+            {hoveredPoint ? hoveredPoint.equity : performance.currentCapital} <span style={{ color: "#4a9d6a", fontWeight: 400, fontSize: 13 }}>{performance.referenceCurrency}</span>
           </div>
         </div>
       </div>
@@ -1477,7 +1502,9 @@ function PortfolioPerformanceChart({ performance }: { performance: PortfolioPerf
         viewBox={`0 0 ${width} ${height}`}
         role="img"
         aria-label="Courbe d'equite du portefeuille"
-        style={{ width: "100%", maxWidth: width, height: 96, marginBottom: 8, overflow: "visible" }}
+        style={{ width: "100%", maxWidth: width, height: 96, marginBottom: 8, overflow: "visible", cursor: "crosshair" }}
+        onMouseMove={handleMouseMove}
+        onMouseLeave={handleMouseLeave}
       >
         <polyline
           fill="none"
@@ -1485,8 +1512,14 @@ function PortfolioPerformanceChart({ performance }: { performance: PortfolioPerf
           strokeWidth="2"
           strokeLinejoin="round"
           strokeLinecap="round"
-          points={points.join(" ")}
+          points={points.map((p) => `${p.x},${p.y}`).join(" ")}
         />
+        {hoveredPoint && (
+          <>
+            <circle cx={hoveredPoint.x} cy={hoveredPoint.y} r="3" fill="#ffb86b" />
+            <line x1={hoveredPoint.x} y1="0" x2={hoveredPoint.x} y2={height} stroke="#5f6671" strokeWidth="1" strokeDasharray="2,2" />
+          </>
+        )}
       </svg>
       <div style={{ color: "#5f6671", fontSize: 11, display: "flex", gap: 12 }}>
         <span>Initial: {performance.initialCapital} {performance.referenceCurrency}</span>
