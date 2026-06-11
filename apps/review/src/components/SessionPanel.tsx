@@ -551,7 +551,7 @@ function ActiveSessionCard({
           <dt style={{ color: "#9aa0a6" }}>Identifiant</dt>
           <dd style={{ margin: 0, fontFamily: "monospace", fontSize: 12 }}>{session.id}</dd>
           <dt style={{ color: "#9aa0a6" }}>Ouverte le</dt>
-          <dd style={{ margin: 0, fontSize: 12 }}>{session.openedAt}</dd>
+          <dd style={{ margin: 0, fontSize: 12 }}>{formatSimpleTime(session.openedAt)}</dd>
         </dl>
       </div>
 
@@ -975,6 +975,19 @@ function linkButtonStyle(enabled: boolean): React.CSSProperties {
   };
 }
 
+function formatSimpleTime(isoString: string): string {
+  try {
+    const date = new Date(isoString);
+    const day = String(date.getDate()).padStart(2, "0");
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const hours = String(date.getHours()).padStart(2, "0");
+    const minutes = String(date.getMinutes()).padStart(2, "0");
+    return `${day}/${month} ${hours}:${minutes}`;
+  } catch {
+    return isoString.substring(0, 16);
+  }
+}
+
 function DecisionRow({
   decision,
   amendments,
@@ -1074,9 +1087,9 @@ function DecisionRow({
         <div style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "flex-end" }}>
           <span
             style={{ color: "#5f6671", fontSize: 12, whiteSpace: "nowrap" }}
-            title={`Enregistre: ${decision.createdAt}`}
+            title={decision.logicalTimestamp}
           >
-            {decision.logicalTimestamp}
+            {formatSimpleTime(decision.logicalTimestamp)}
           </span>
           {badge && (
             <span
@@ -1655,7 +1668,7 @@ function ClosedSessionCard({
           <dt style={{ color: "#9aa0a6" }}>Identifiant</dt>
           <dd style={{ margin: 0, fontFamily: "monospace", fontSize: 12 }}>{session.id}</dd>
           <dt style={{ color: "#9aa0a6" }}>Cloturee le</dt>
-          <dd style={{ margin: 0, fontSize: 12 }}>{session.closedAt ?? "—"}</dd>
+          <dd style={{ margin: 0, fontSize: 12 }}>{session.closedAt ? formatSimpleTime(session.closedAt) : "—"}</dd>
         </dl>
       </div>
 
