@@ -545,36 +545,21 @@ function ActiveSessionCard({
 }) {
   return (
     <div style={cardStyle}>
-      <h2 style={{ marginTop: 0, fontSize: 18 }}>Session active</h2>
-      <dl style={dlStyle}>
-        <dt style={{ color: "#9aa0a6" }}>Identifiant</dt>
-        <dd style={{ margin: 0, fontFamily: "monospace" }}>{session.id}</dd>
-        <dt style={{ color: "#9aa0a6" }}>Statut</dt>
-        <dd style={{ margin: 0 }}>{session.status}</dd>
-        <dt style={{ color: "#9aa0a6" }}>Ouverte le</dt>
-        <dd style={{ margin: 0 }}>{session.openedAt}</dd>
-        <dt style={{ color: "#9aa0a6" }}>Decisions</dt>
-        <dd style={{ margin: 0 }}>
-          {session.canReceiveDecisions
-            ? "Prete a recevoir des decisions"
-            : "Indisponible"}
-        </dd>
-      </dl>
+      <div style={{ marginBottom: 20, paddingBottom: 20, borderBottom: "1px solid #2a2f37" }}>
+        <h2 style={{ marginTop: 0, marginBottom: 12, fontSize: 18 }}>Session active</h2>
+        <dl style={{ ...dlStyle, fontSize: 13 }}>
+          <dt style={{ color: "#9aa0a6" }}>Identifiant</dt>
+          <dd style={{ margin: 0, fontFamily: "monospace", fontSize: 12 }}>{session.id}</dd>
+          <dt style={{ color: "#9aa0a6" }}>Ouverte le</dt>
+          <dd style={{ margin: 0, fontSize: 12 }}>{session.openedAt}</dd>
+        </dl>
+      </div>
 
-      {portfolio && <PortfolioSummary portfolio={portfolio} />}
-      {performance && <PortfolioPerformanceChart performance={performance} />}
-      {stats && <PortfolioStatsSummary stats={stats} />}
-      {history && <PortfolioHistoryTimeline history={history} />}
-
-      <SessionAssets
-        assets={assets}
-        symbolInput={symbolInput}
-        onSymbolChange={onSymbolChange}
-        onAddAsset={onAddAsset}
-        disabled={disabled}
-      />
-
-      <DecisionCapture assets={assets} onCapture={onCapture} disabled={disabled} />
+      <div style={{ marginBottom: 24 }}>
+        {portfolio && <PortfolioSummary portfolio={portfolio} />}
+        {performance && <PortfolioPerformanceChart performance={performance} />}
+        {stats && <PortfolioStatsSummary stats={stats} />}
+      </div>
 
       <DecisionHistory
         decisions={decisions}
@@ -584,24 +569,43 @@ function ActiveSessionCard({
         disabled={disabled}
       />
 
-      <button
-        type="button"
-        onClick={onClose}
-        disabled={disabled}
+      <div
         style={{
-          marginTop: 16,
-          padding: "10px 16px",
-          fontSize: 14,
-          fontWeight: 600,
-          color: "#0f1115",
-          background: "#ffb86b",
-          border: "none",
-          borderRadius: 8,
-          cursor: disabled ? "not-allowed" : "pointer",
+          marginTop: 24,
+          paddingTop: 20,
+          borderTop: "1px solid #2a2f37",
+          display: "grid",
+          gap: 16,
         }}
       >
-        Cloturer la session
-      </button>
+        <SessionAssets
+          assets={assets}
+          symbolInput={symbolInput}
+          onSymbolChange={onSymbolChange}
+          onAddAsset={onAddAsset}
+          disabled={disabled}
+        />
+
+        <DecisionCapture assets={assets} onCapture={onCapture} disabled={disabled} />
+
+        <button
+          type="button"
+          onClick={onClose}
+          disabled={disabled}
+          style={{
+            padding: "10px 16px",
+            fontSize: 14,
+            fontWeight: 600,
+            color: "#0f1115",
+            background: "#ffb86b",
+            border: "none",
+            borderRadius: 8,
+            cursor: disabled ? "not-allowed" : "pointer",
+          }}
+        >
+          Cloturer la session
+        </button>
+      </div>
     </div>
   );
 }
@@ -621,51 +625,46 @@ function SessionAssets({
 }) {
   const canAdd = !disabled && symbolInput.trim().length > 0;
   return (
-    <div style={{ marginTop: 20, borderTop: "1px solid #2a2f37", paddingTop: 16 }}>
-      <h3 style={{ margin: "0 0 8px", fontSize: 14, color: "#9aa0a6" }}>
-        Actifs suivis
-      </h3>
-
-      {assets.length === 0 ? (
-        <p style={{ margin: "0 0 12px", color: "#9aa0a6", fontSize: 13 }}>
-          Aucun actif associe pour le moment.
-        </p>
-      ) : (
-        <ul
-          style={{
-            listStyle: "none",
-            margin: "0 0 12px",
-            padding: 0,
-            display: "flex",
-            flexWrap: "wrap",
-            gap: 8,
-          }}
-        >
-          {assets.map((asset) => (
-            <li
-              key={asset.id}
-              title={asset.name ?? asset.symbol}
-              style={{
-                padding: "4px 10px",
-                fontSize: 13,
-                fontFamily: "monospace",
-                color: "#e6e8eb",
-                background: "#0f1115",
-                border: "1px solid #2a2f37",
-                borderRadius: 999,
-              }}
-            >
-              {asset.symbol}
-              {asset.name ? (
-                <span style={{ color: "#9aa0a6", fontFamily: "system-ui" }}>
-                  {" "}
-                  · {asset.name}
-                </span>
-              ) : null}
-            </li>
-          ))}
-        </ul>
-      )}
+    <div style={{ paddingTop: 0 }}>
+      <div style={{ marginBottom: 10 }}>
+        <h3 style={{ margin: "0 0 6px", fontSize: 13, color: "#7a8087" }}>
+          Actifs suivis
+        </h3>
+        {assets.length === 0 ? (
+          <p style={{ margin: 0, color: "#5f6671", fontSize: 12 }}>
+            Aucun actif associe pour le moment.
+          </p>
+        ) : (
+          <ul
+            style={{
+              listStyle: "none",
+              margin: 0,
+              padding: 0,
+              display: "flex",
+              flexWrap: "wrap",
+              gap: 6,
+            }}
+          >
+            {assets.map((asset) => (
+              <li
+                key={asset.id}
+                title={asset.name ?? asset.symbol}
+                style={{
+                  padding: "3px 8px",
+                  fontSize: 12,
+                  fontFamily: "monospace",
+                  color: "#c2c7cf",
+                  background: "#161a21",
+                  border: "1px solid #2a2f37",
+                  borderRadius: 999,
+                }}
+              >
+                {asset.symbol}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
 
       <form
         onSubmit={(event) => {
@@ -683,24 +682,24 @@ function SessionAssets({
           style={{
             flex: 1,
             padding: "8px 12px",
-            fontSize: 14,
+            fontSize: 13,
             color: "#e6e8eb",
-            background: "#0f1115",
+            background: "#161a21",
             border: "1px solid #2a2f37",
-            borderRadius: 8,
+            borderRadius: 6,
           }}
         />
         <button
           type="submit"
           disabled={!canAdd}
           style={{
-            padding: "8px 16px",
-            fontSize: 14,
+            padding: "8px 14px",
+            fontSize: 13,
             fontWeight: 600,
             color: "#0f1115",
             background: canAdd ? "#5ad17a" : "#3a3f47",
             border: "none",
-            borderRadius: 8,
+            borderRadius: 6,
             cursor: canAdd ? "pointer" : "not-allowed",
           }}
         >
@@ -785,13 +784,13 @@ function DecisionCapture({
   };
 
   return (
-    <div style={{ marginTop: 20, borderTop: "1px solid #2a2f37", paddingTop: 16 }}>
-      <h3 style={{ margin: "0 0 8px", fontSize: 14, color: "#9aa0a6" }}>
-        Nouvelle decision
+    <div style={{ paddingTop: 0 }}>
+      <h3 style={{ margin: "0 0 10px", fontSize: 13, color: "#7a8087" }}>
+        Capturer une decision
       </h3>
 
       {assets.length === 0 ? (
-        <p style={{ margin: 0, color: "#9aa0a6", fontSize: 13 }}>
+        <p style={{ margin: 0, color: "#5f6671", fontSize: 12 }}>
           Associez d&apos;abord un actif pour enregistrer une decision.
         </p>
       ) : (
@@ -801,12 +800,12 @@ function DecisionCapture({
             onChange={(event) => setAssetId(event.target.value)}
             aria-label="Actif de la decision"
             style={{
-              padding: "8px 12px",
-              fontSize: 14,
+              padding: "8px 10px",
+              fontSize: 13,
               color: "#e6e8eb",
-              background: "#0f1115",
+              background: "#161a21",
               border: "1px solid #2a2f37",
-              borderRadius: 8,
+              borderRadius: 6,
             }}
           >
             {assets.map((asset) => (
@@ -820,9 +819,17 @@ function DecisionCapture({
             inputMode="decimal"
             value={quantity}
             onChange={(event) => setQuantity(event.target.value)}
-            placeholder="Quantite"
+            placeholder="Qte"
             aria-label="Quantite"
-            style={decimalInputStyle}
+            style={{
+              width: 70,
+              padding: "8px 10px",
+              fontSize: 13,
+              color: "#e6e8eb",
+              background: "#161a21",
+              border: "1px solid #2a2f37",
+              borderRadius: 6,
+            }}
           />
           <input
             type="text"
@@ -831,13 +838,30 @@ function DecisionCapture({
             onChange={(event) => setReferencePrice(event.target.value)}
             placeholder="Prix"
             aria-label="Prix de reference"
-            style={decimalInputStyle}
+            style={{
+              width: 70,
+              padding: "8px 10px",
+              fontSize: 13,
+              color: "#e6e8eb",
+              background: "#161a21",
+              border: "1px solid #2a2f37",
+              borderRadius: 6,
+            }}
           />
           <button
             type="button"
             onClick={() => void submit("buy")}
             disabled={!canCapture}
-            style={sideButtonStyle("buy", canCapture)}
+            style={{
+              padding: "8px 14px",
+              fontSize: 13,
+              fontWeight: 600,
+              color: "#0f1115",
+              background: canCapture ? "#5ad17a" : "#3a3f47",
+              border: "none",
+              borderRadius: 6,
+              cursor: canCapture ? "pointer" : "not-allowed",
+            }}
           >
             Acheter
           </button>
@@ -845,7 +869,16 @@ function DecisionCapture({
             type="button"
             onClick={() => void submit("sell")}
             disabled={!canCapture}
-            style={sideButtonStyle("sell", canCapture)}
+            style={{
+              padding: "8px 14px",
+              fontSize: 13,
+              fontWeight: 600,
+              color: "#0f1115",
+              background: canCapture ? "#ff8a80" : "#3a3f47",
+              border: "none",
+              borderRadius: 6,
+              cursor: canCapture ? "pointer" : "not-allowed",
+            }}
           >
             Vendre
           </button>
@@ -877,13 +910,13 @@ function DecisionHistory({
   const entries = timeline ?? decisions.map((decision) => ({ decision, amendments: [] }));
 
   return (
-    <div style={{ marginTop: 20, borderTop: "1px solid #2a2f37", paddingTop: 16 }}>
-      <h3 style={{ margin: "0 0 8px", fontSize: 14, color: "#9aa0a6" }}>
+    <div style={{ marginBottom: 0 }}>
+      <h3 style={{ margin: "0 0 12px", fontSize: 14, fontWeight: 600, color: "#e6e8eb" }}>
         Historique des decisions
       </h3>
 
       {entries.length === 0 ? (
-        <p style={{ margin: 0, color: "#9aa0a6", fontSize: 13 }}>
+        <p style={{ margin: 0, color: "#5f6671", fontSize: 13 }}>
           Aucune decision enregistree pour le moment.
         </p>
       ) : (
@@ -894,7 +927,7 @@ function DecisionHistory({
             padding: 0,
             display: "flex",
             flexDirection: "column",
-            gap: 6,
+            gap: 8,
           }}
         >
           {entries.map((entry) => (
@@ -982,54 +1015,84 @@ function DecisionRow({
       style={{
         display: "flex",
         flexDirection: "column",
-        gap: 6,
-        padding: "6px 10px",
+        gap: 8,
+        padding: "12px 14px",
         fontSize: 13,
         background: "#0f1115",
         border: "1px solid #2a2f37",
         borderRadius: 8,
-        opacity: cancelled ? 0.6 : 1,
+        opacity: cancelled ? 0.5 : 1,
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <span
-          style={{
-            minWidth: 52,
-            textAlign: "center",
-            fontWeight: 600,
-            color: "#0f1115",
-            background: decision.side === "buy" ? "#5ad17a" : "#ff8a80",
-            borderRadius: 999,
-            padding: "2px 8px",
-            textDecoration: cancelled ? "line-through" : "none",
-          }}
-        >
-          {decision.side === "buy" ? "Achat" : "Vente"}
-        </span>
-        <span style={{ fontFamily: "monospace", color: "#e6e8eb" }}>{symbol}</span>
-        <span style={{ color: "#9aa0a6" }}>
-          {decision.quantity} @ {decision.referencePrice}
-        </span>
-        {badge && (
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "auto 1fr auto",
+          gap: 12,
+          alignItems: "center",
+        }}
+      >
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <span
             style={{
-              fontSize: 11,
+              minWidth: 50,
+              textAlign: "center",
               fontWeight: 600,
-              color: badge.color,
-              border: `1px solid ${badge.color}`,
+              fontSize: 12,
+              color: "#0f1115",
+              background: decision.side === "buy" ? "#5ad17a" : "#ff8a80",
               borderRadius: 999,
-              padding: "1px 6px",
+              padding: "4px 8px",
+              textDecoration: cancelled ? "line-through" : "none",
             }}
           >
-            {badge.label}
+            {decision.side === "buy" ? "ACHAT" : "VENTE"}
           </span>
-        )}
-        <span
-          style={{ marginLeft: "auto", color: "#5f6671", fontSize: 12 }}
-          title={`Enregistre: ${decision.createdAt}`}
-        >
-          {decision.logicalTimestamp}
-        </span>
+          <span
+            style={{
+              fontFamily: "monospace",
+              fontSize: 14,
+              fontWeight: 600,
+              color: "#e6e8eb",
+              minWidth: 60,
+            }}
+            title={symbol}
+          >
+            {symbol}
+          </span>
+        </div>
+
+        <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "center" }}>
+          <span style={{ color: "#c2c7cf", whiteSpace: "nowrap" }}>
+            <span style={{ color: "#9aa0a6" }}>Qté:</span> {decision.quantity}
+          </span>
+          <span style={{ color: "#c2c7cf", whiteSpace: "nowrap" }}>
+            <span style={{ color: "#9aa0a6" }}>Prix:</span> {decision.referencePrice}
+          </span>
+        </div>
+
+        <div style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "flex-end" }}>
+          <span
+            style={{ color: "#5f6671", fontSize: 12, whiteSpace: "nowrap" }}
+            title={`Enregistre: ${decision.createdAt}`}
+          >
+            {decision.logicalTimestamp}
+          </span>
+          {badge && (
+            <span
+              style={{
+                fontSize: 11,
+                fontWeight: 600,
+                color: badge.color,
+                border: `1px solid ${badge.color}`,
+                borderRadius: 999,
+                padding: "2px 6px",
+              }}
+            >
+              {badge.label}
+            </span>
+          )}
+        </div>
       </div>
 
       {decision.comment && (
@@ -1048,8 +1111,10 @@ function DecisionRow({
       {amendments.length > 0 && (
         <div
           style={{
-            padding: "4px 8px",
+            padding: "8px 12px",
+            background: "#161a21",
             borderLeft: "2px solid #2a2f37",
+            borderRadius: 4,
             display: "flex",
             flexDirection: "column",
             gap: 4,
@@ -1062,7 +1127,7 @@ function DecisionRow({
       )}
 
       {canAmend && (
-        <div style={{ display: "flex", gap: 6 }}>
+        <div style={{ display: "flex", gap: 8, paddingTop: 4 }}>
           <button
             type="button"
             onClick={() => toggle("comment")}
@@ -1329,23 +1394,21 @@ function PortfolioStatsSummary({ stats }: { stats: PortfolioStats }) {
   return (
     <div
       style={{
-        marginTop: 12,
-        padding: "10px 14px",
+        marginTop: 0,
+        padding: "16px 16px",
         background: "#0f1115",
         border: "1px solid #2a2f37",
         borderRadius: 8,
-        fontSize: 12,
-        color: "#9aa0a6",
       }}
     >
-      <h3 style={{ margin: "0 0 8px", fontSize: 13, color: "#c2c7cf" }}>
+      <h3 style={{ margin: "0 0 12px", fontSize: 13, fontWeight: 600, color: "#c2c7cf" }}>
         Statistiques
       </h3>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: 8 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 10 }}>
         {items.map(([label, value]) => (
-          <div key={label} style={{ padding: "6px 8px", background: "#161a21", borderRadius: 6 }}>
-            <div style={{ color: "#5f6671", fontSize: 11 }}>{label}</div>
-            <strong style={{ color: "#e6e8eb" }}>{value}</strong>
+          <div key={label} style={{ paddingBottom: 8 }}>
+            <div style={{ color: "#7a8087", fontSize: 11, marginBottom: 4 }}>{label}</div>
+            <strong style={{ color: "#e6e8eb", fontSize: 14 }}>{value}</strong>
           </div>
         ))}
       </div>
@@ -1369,39 +1432,42 @@ function PortfolioPerformanceChart({ performance }: { performance: PortfolioPerf
   return (
     <div
       style={{
-        marginTop: 12,
-        padding: "10px 14px",
+        marginTop: 0,
+        marginBottom: 12,
+        padding: "16px 16px",
         background: "#0f1115",
         border: "1px solid #2a2f37",
         borderRadius: 8,
-        fontSize: 13,
-        color: "#9aa0a6",
       }}
     >
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-        <h3 style={{ margin: 0, fontSize: 13, color: "#c2c7cf" }}>Performance</h3>
-        <strong style={{ color: "#5ad17a" }}>
-          {performance.currentCapital} {performance.referenceCurrency}
-        </strong>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12, marginBottom: 12 }}>
+        <h3 style={{ margin: 0, fontSize: 13, fontWeight: 600, color: "#c2c7cf" }}>Courbe d&apos;équité</h3>
+        <div style={{ textAlign: "right" }}>
+          <div style={{ color: "#7a8087", fontSize: 11, marginBottom: 2 }}>Capital courant</div>
+          <div style={{ color: "#5ad17a", fontWeight: 600, fontSize: 14 }}>
+            {performance.currentCapital} <span style={{ color: "#4a9d6a", fontWeight: 400, fontSize: 13 }}>{performance.referenceCurrency}</span>
+          </div>
+        </div>
       </div>
       <svg
         viewBox={`0 0 ${width} ${height}`}
         role="img"
         aria-label="Courbe d'equite du portefeuille"
-        style={{ width: "100%", maxWidth: width, height: 96, marginTop: 10, overflow: "visible" }}
+        style={{ width: "100%", maxWidth: width, height: 96, marginBottom: 8, overflow: "visible" }}
       >
         <polyline
           fill="none"
           stroke="#5ad17a"
-          strokeWidth="3"
+          strokeWidth="2"
           strokeLinejoin="round"
           strokeLinecap="round"
           points={points.join(" ")}
         />
       </svg>
-      <p style={{ margin: "6px 0 0", color: "#5f6671", fontSize: 12 }}>
-        Capital initial: {performance.initialCapital} {performance.referenceCurrency} · {performance.points.length} trades
-      </p>
+      <div style={{ color: "#5f6671", fontSize: 11, display: "flex", gap: 12 }}>
+        <span>Initial: {performance.initialCapital} {performance.referenceCurrency}</span>
+        <span>Trades: {performance.points.length}</span>
+      </div>
     </div>
   );
 }
@@ -1488,41 +1554,34 @@ function PortfolioSummary({ portfolio }: { portfolio: Portfolio }) {
   return (
     <div
       style={{
-        marginTop: 16,
-        padding: "10px 14px",
+        marginTop: 0,
+        marginBottom: 12,
+        padding: "14px 16px",
         background: "#0f1115",
         border: "1px solid #2a2f37",
         borderRadius: 8,
         fontSize: 13,
-        color: "#9aa0a6",
       }}
     >
-      <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
-        <span>
-          Solde espece:{" "}
-          <strong style={{ color: "#e6e8eb" }}>
-            {portfolio.cash} {cur}
-          </strong>
-        </span>
-        <span>
-          Titres en portefeuille:{" "}
-          <strong style={{ color: "#e6e8eb" }}>
-            {subtractDecimalStrings(portfolio.totalValue, portfolio.cash)} {cur}
-          </strong>
-        </span>
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-          <WealthDuckIcon />
-          Total:{" "}
-          <strong style={{ color: "#5ad17a" }}>
-            {portfolio.totalValue} {cur}
-          </strong>
-        </span>
-        <span>
-          Capital initial:{" "}
-          <strong style={{ color: "#9aa0a6" }}>
-            {portfolio.initialCapital} {cur}
-          </strong>
-        </span>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 }}>
+        <div>
+          <div style={{ color: "#7a8087", fontSize: 11, marginBottom: 4 }}>Solde espece</div>
+          <div style={{ color: "#e6e8eb", fontWeight: 600, fontSize: 14 }}>
+            {portfolio.cash} <span style={{ color: "#9aa0a6", fontWeight: 400, fontSize: 13 }}>{cur}</span>
+          </div>
+        </div>
+        <div>
+          <div style={{ color: "#7a8087", fontSize: 11, marginBottom: 4 }}>Titres en portefeuille</div>
+          <div style={{ color: "#e6e8eb", fontWeight: 600, fontSize: 14 }}>
+            {subtractDecimalStrings(portfolio.totalValue, portfolio.cash)} <span style={{ color: "#9aa0a6", fontWeight: 400, fontSize: 13 }}>{cur}</span>
+          </div>
+        </div>
+        <div>
+          <div style={{ color: "#7a8087", fontSize: 11, marginBottom: 4 }}>Capital total</div>
+          <div style={{ color: "#5ad17a", fontWeight: 600, fontSize: 14 }}>
+            {portfolio.totalValue} <span style={{ color: "#4a9d6a", fontWeight: 400, fontSize: 13 }}>{cur}</span>
+          </div>
+        </div>
       </div>
 
       {portfolio.positions.length > 0 && (
@@ -1590,22 +1649,21 @@ function ClosedSessionCard({
 }) {
   return (
     <div style={cardStyle}>
-      <h2 style={{ marginTop: 0, fontSize: 18 }}>Session cloturee</h2>
-      <dl style={dlStyle}>
-        <dt style={{ color: "#9aa0a6" }}>Identifiant</dt>
-        <dd style={{ margin: 0, fontFamily: "monospace" }}>{session.id}</dd>
-        <dt style={{ color: "#9aa0a6" }}>Statut</dt>
-        <dd style={{ margin: 0 }}>{session.status}</dd>
-        <dt style={{ color: "#9aa0a6" }}>Cloturee le</dt>
-        <dd style={{ margin: 0 }}>{session.closedAt ?? "—"}</dd>
-        <dt style={{ color: "#9aa0a6" }}>Nouvelle decision</dt>
-        <dd style={{ margin: 0 }}>Indisponible (session cloturee)</dd>
-      </dl>
+      <div style={{ marginBottom: 20, paddingBottom: 20, borderBottom: "1px solid #2a2f37" }}>
+        <h2 style={{ marginTop: 0, marginBottom: 12, fontSize: 18 }}>Session cloturee</h2>
+        <dl style={{ ...dlStyle, fontSize: 13 }}>
+          <dt style={{ color: "#9aa0a6" }}>Identifiant</dt>
+          <dd style={{ margin: 0, fontFamily: "monospace", fontSize: 12 }}>{session.id}</dd>
+          <dt style={{ color: "#9aa0a6" }}>Cloturee le</dt>
+          <dd style={{ margin: 0, fontSize: 12 }}>{session.closedAt ?? "—"}</dd>
+        </dl>
+      </div>
 
-      {portfolio && <PortfolioSummary portfolio={portfolio} />}
-      {performance && <PortfolioPerformanceChart performance={performance} />}
-      {stats && <PortfolioStatsSummary stats={stats} />}
-      {history && <PortfolioHistoryTimeline history={history} />}
+      <div style={{ marginBottom: 24 }}>
+        {portfolio && <PortfolioSummary portfolio={portfolio} />}
+        {performance && <PortfolioPerformanceChart performance={performance} />}
+        {stats && <PortfolioStatsSummary stats={stats} />}
+      </div>
 
       {/* History stays consultable after close (AC 2). */}
       <DecisionHistory decisions={decisions} timeline={timeline} assets={assets} />
