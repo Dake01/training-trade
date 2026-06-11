@@ -1427,6 +1427,10 @@ function PortfolioPerformanceChart({ performance }: { performance: PortfolioPerf
   const span = max - min || 1;
   const width = 320;
   const height = 96;
+
+  const initialCapitalValue = Number(performance.initialCapital);
+  const initialCapitalY = height - ((initialCapitalValue - min) / span) * height;
+
   const points = performance.points.map((point, index) => {
     const x = performance.points.length === 1 ? 0 : (index / (performance.points.length - 1)) * width;
     const y = height - ((Number(point.equity) - min) / span) * height;
@@ -1469,7 +1473,7 @@ function PortfolioPerformanceChart({ performance }: { performance: PortfolioPerf
       }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12, marginBottom: 12 }}>
-        <h3 style={{ margin: 0, fontSize: 13, fontWeight: 600, color: "#c2c7cf" }}>Courbe d&apos;équité</h3>
+        <h3 style={{ margin: 0, fontSize: 13, fontWeight: 600, color: "#c2c7cf" }}>Evolution du capital</h3>
         <div style={{ textAlign: "right" }}>
           <div style={{ color: "#7a8087", fontSize: 11, marginBottom: 2 }}>
             {hoveredPoint ? `Capital pointé` : "Capital courant"}
@@ -1482,11 +1486,12 @@ function PortfolioPerformanceChart({ performance }: { performance: PortfolioPerf
       <svg
         viewBox={`0 0 ${width} ${height}`}
         role="img"
-        aria-label="Courbe d'equite du portefeuille"
+        aria-label="Evolution du capital du portefeuille"
         style={{ width: "100%", maxWidth: width, height: 96, marginBottom: 8, overflow: "visible", cursor: "crosshair" }}
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
       >
+        <line x1="0" y1={initialCapitalY} x2={width} y2={initialCapitalY} stroke="#5f6671" strokeWidth="1" strokeDasharray="2,2" />
         <polyline
           fill="none"
           stroke="#5ad17a"
